@@ -8,6 +8,9 @@
 #include <cstdint>
 #include <cstdio>
 #include <string>
+#include <filesystem>
+
+namespace fs = std::filesystem;
 
 class MyException: public std::exception {
 private:
@@ -40,6 +43,8 @@ public:
 
     bool read(const char* filename);
     bool write(const char* filename);
+    bool write();
+    bool _write(const char* filename);
 
     void set_size(){
         this->size = width*height*channels;
@@ -78,6 +83,10 @@ public:
         return this->data;
     }
 
+    const char* get_filename() const{
+        return this->filename;
+    }
+
     Image& operator=(Image const& other){
         if (this != &other)
             copy(other);
@@ -94,6 +103,7 @@ protected:
     int height;
     int channels;
     int force_chan = 0;
+    const char* filename;
 
 };
 

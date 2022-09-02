@@ -5,6 +5,7 @@
 #include "stb_image.h"
 #include "stb_image_write.h"
 
+
 MyException::MyException(const std::string& message) : message_(message) {
 
 }
@@ -14,6 +15,7 @@ Image::Image(const char* filename){
     if(this->read(filename)){
         printf("Read the %s file succesfully!\n", filename);
         set_size();
+        this->filename = filename;
     }
     else
         printf("Reading failure! %s \n", filename);
@@ -32,7 +34,15 @@ bool Image::read(const char* filename){
     return (data != nullptr);
 }
 
-bool Image::write(const char* filename){
+bool Image::write(){
+    return _write(this->filename);
+}
+
+bool Image::write(const char *filename) {
+    return _write(filename);
+}
+
+bool Image::_write(const char* filename){
     ImageType type = get_file_type(filename);
     int success;
     switch(type){
@@ -57,9 +67,11 @@ void Image::copy(const Image &other){
     this->width = other.get_width();
     this->height = other.get_height();
     this->channels = other.get_channels();
+    this->filename = other.get_filename();
     set_size();
     this->data = new uint8_t [size];
     memcpy(this->data, other.data, this->size);
+
 }
 
 void Image::free(){
@@ -68,6 +80,24 @@ void Image::free(){
 }
 
 ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to poprawnie
+
+    fs::path file_path = filename;
+
+    if (file_path.extension() == ".png")
+        return PNG;
+    else if (file_path.extension() ==".jpg")
+        return JPG;
+    else if (file_path.extension() == ".bmp")
+        return BMP;
+    else if (file_path.extension() == ".tga")
+        return TGA;
+    else
+        throw MyException("Nieznany format!");
+
+}
+
+
+/*ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to poprawnie
 
     //std::string ext = std::string(filename, strlen(filename));
     //ext = ext.substr(ext.find("."), ext.length());
@@ -86,5 +116,5 @@ ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to popraw
         else
             throw MyException("Nieznany format!");
     }
-}
+}*/
 
