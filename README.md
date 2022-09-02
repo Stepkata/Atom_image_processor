@@ -3,10 +3,13 @@ A imple image editor made based on the [Image Processing in C++](https://www.you
 ([github repository](https://github.com/Code-Break0/Image-Processing))
 
 Changes include:
+* change in the function regognising file extensions (used c++ 17 library)
 * chromatic aberration filters
 * distortion filter 
 * cutting images into separate pieces (4 options)
 * fusing separate images into one big piece
+* rotating image
+* resizing image
 
 Planned changes:
 * GUI
