@@ -79,7 +79,7 @@ void Image::free(){
         stbi_image_free(data); //funkcja free z bibloteki
 }
 
-ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to poprawnie
+ImageType Image::get_file_type(const char* filename){ //@TODO: Norton coś marudził?
 
     fs::path file_path = filename;
 
@@ -96,25 +96,4 @@ ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to popraw
 
 }
 
-
-/*ImageType Image::get_file_type(const char* filename){ //@TODO: zrobić to poprawnie
-
-    //std::string ext = std::string(filename, strlen(filename));
-    //ext = ext.substr(ext.find("."), ext.length());
-    const char* ext = strrchr(filename, '.');
-    if (ext == nullptr)
-        throw MyException("Nie udało się pobrać formatu!");
-    else{
-        if (strcmp(ext, ".png"))
-            return PNG;
-        else if (strcmp(ext, ".jpg"))
-            return JPG;
-        else if (strcmp(ext, ".bmp"))
-            return BMP;
-        else if (strcmp(ext, ".tga"))
-            return TGA;
-        else
-            throw MyException("Nieznany format!");
-    }
-}*/
 

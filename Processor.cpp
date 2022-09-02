@@ -265,17 +265,21 @@ Processor &Processor::rotate_right() {
     int new_height = this->width;
     int new_width = this->height;
 
-    int j=0;
-    for(int i=0; i<new_height; i++)
-        for(int k=i; k<size; k+=this->width, j++){
-            memcpy(&new_data[j], &data[k], this->channels);
-        }
+    int h=this->height, w=this->width, ch = this->channels, pom = 0, index = 0, pom2=0;
 
+    for(int i=0; i<w; i++, pom2+=ch){
+        pom = pom2;
+        for(int j=0; j<h; j++, pom += w*ch)
+            for(int n=0; n<ch; n++, index++){
+                new_data[index] = data[pom + n];
+            }
+    }
     free();
     this->data = new_data;
     new_data = nullptr;
     this->height = new_height;
     this->width = new_width;
+    flip_x();
     return *this;
 }
 
@@ -312,7 +316,7 @@ void Processor::cut_horisontal_to_form(int n) {
     _cut_h(0, n);
 }
 
-bool Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
+void Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
     auto *new_data = new uint8_t [new_w*new_h*this->channels];
     int success;
     success = stbir_resize_uint8((const uint8_t*)this->data, this->width, this->height, 0,
@@ -323,7 +327,5 @@ bool Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
     this->data = new_data;
     this->width = new_w;
     this->height = new_h;
-
-    return (success);
 }
 
