@@ -4,8 +4,8 @@
 
 int main() {
     Processor test("C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\pogkim.jpg");
-    test.cut_horisontal_to_form(500);
-    test.write("C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\new14.png");
+    test.resize(400, 500);
+    test.write("C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\new15.png");
 
 
     /*Image copy = test;

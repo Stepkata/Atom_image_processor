@@ -32,7 +32,7 @@ bool Image::read(const char* filename){
     return (data != nullptr);
 }
 
-bool Image::write(const char* filename){ //@TODO: przepisać jako template
+bool Image::write(const char* filename){
     ImageType type = get_file_type(filename);
     int success;
     switch(type){

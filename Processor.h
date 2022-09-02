@@ -32,6 +32,7 @@ public:
     void cut_to_form(int w, int h);
     void cut_horisontal(int n);
     void cut_horisontal_to_form(int n);
+    bool resize(int new_w, int new_h);
 
     Processor& operator=(Processor const& other){
         if (this != &other)

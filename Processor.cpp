@@ -1,5 +1,9 @@
+#define STB_IMAGE_RESIZE_IMPLEMENTATION
+
 
 #include "Processor.h"
+#include "stb_image_resize.h"
+
 #include <iostream>
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
@@ -306,5 +310,20 @@ void Processor::cut_horisontal(int n) {
 
 void Processor::cut_horisontal_to_form(int n) {
     _cut_h(0, n);
+}
+
+bool Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
+    auto *new_data = new uint8_t [new_w*new_h*this->channels];
+    int success;
+    success = stbir_resize_uint8((const uint8_t*)this->data, this->width, this->height, 0,
+                       new_data, new_w, new_h, 0, this->channels);
+    if(!success)
+        throw MyException("Resize failure!");
+    delete [] data;
+    this->data = new_data;
+    this->width = new_w;
+    this->height = new_h;
+
+    return (success);
 }
 
