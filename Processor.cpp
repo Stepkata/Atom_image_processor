@@ -329,3 +329,28 @@ void Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
     this->height = new_h;
 }
 
+uint8_t Processor::clamp(float v) {
+    if (v < 0)
+        return 0;
+    if (v > 255)
+        return 255;
+    return (uint8_t)v;
+}
+
+Processor& Processor::change_hue(float fHue) {
+    float cosA = cos(fHue*3.14159265f/180); //convert degrees to radians
+    float sinA = sin(fHue*3.14159265f/180); //convert degrees to radians
+    //calculate the rotation matrix, only depends on Hue
+    float matrix[3][3] = {{cosA + (1.0f - cosA) / 3.0f, 1.0f/3.0f * (1.0f - cosA) - sqrtf(1.0f/3.0f) * sinA, 1.0f/3.0f * (1.0f - cosA) + sqrtf(1.0f/3.0f) * sinA},
+                          {1.0f/3.0f * (1.0f - cosA) + sqrtf(1.0f/3.0f) * sinA, cosA + 1.0f/3.0f*(1.0f - cosA), 1.0f/3.0f * (1.0f - cosA) - sqrtf(1.0f/3.0f) * sinA},
+                          {1.0f/3.0f * (1.0f - cosA) - sqrtf(1.0f/3.0f) * sinA, 1.0f/3.0f * (1.0f - cosA) + sqrtf(1.0f/3.0f) * sinA, cosA + 1.0f/3.0f * (1.0f - cosA)}};
+    //Use the rotation matrix to convert the RGB directly
+
+    for(int i=0; i<this->size; i+=channels){
+        data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
+        data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
+        data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
+    }
+    return *this;
+}
+

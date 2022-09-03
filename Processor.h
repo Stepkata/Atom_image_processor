@@ -8,6 +8,7 @@
 #include "image.h"
 #include <cstring>
 #include <vector>
+#include <cmath>
 
 class Processor: public Image {
 public:
@@ -27,12 +28,13 @@ public:
     Processor& distortion_filter(float r, float g, float b);
     Processor& overlay(Processor& image, int x, int y);
     Processor& fuse(std::vector<const char*> filenames);
-    Processor& rotate_right(); //@TODO
+    Processor& rotate_right();
     void cut(int n);
     void cut_to_form(int w, int h);
     void cut_horisontal(int n);
     void cut_horisontal_to_form(int n);
     void resize(int new_w, int new_h);
+    Processor& change_hue(float fHue);
 
     Processor& operator=(Processor const& other){
         if (this != &other)
@@ -44,6 +46,7 @@ public:
 private:
     void _cut(bool t, int n);
     void _cut_h(bool t, int n);
+    uint8_t clamp(float v);
 };
 
 
