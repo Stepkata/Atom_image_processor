@@ -6,6 +6,8 @@
 #define IMAGEPROCESSOR_PROCESSOR_H
 
 #include "image.h"
+#include "Font.h"
+
 #include <cstring>
 #include <vector>
 #include <cmath>
@@ -29,12 +31,15 @@ public:
     Processor& overlay(Processor& image, int x, int y);
     Processor& fuse(std::vector<const char*> filenames);
     Processor& rotate_right();
+    Processor& change_hue(float fHue);
+    Processor& overlayText(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
+                           uint8_t b = 0, uint8_t a = 100);
     void cut(int n);
-    void cut_to_form(int w, int h);
+    void cut_to_form(int n);
     void cut_horisontal(int n);
     void cut_horisontal_to_form(int n);
     void resize(int new_w, int new_h);
-    Processor& change_hue(float fHue);
+
 
     Processor& operator=(Processor const& other){
         if (this != &other)
@@ -47,6 +52,7 @@ private:
     void _cut(bool t, int n);
     void _cut_h(bool t, int n);
     uint8_t clamp(float v);
+    static int num_cut;
 };
 
 

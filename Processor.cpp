@@ -8,6 +8,8 @@
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
 
+int Processor::num_cut = 0;
+
 Processor& Processor::grayscale_avg(){
     if (channels <3){
         printf("Too little channels, the image is already grayscale!");
@@ -155,10 +157,8 @@ Processor &Processor::distortion_filter(float r, float g, float b) {
     return *this;
 }
 
-void Processor::cut_to_form(int w, int h) {
-    if (w < this->width)
-        crop(0, 0, w, this->height);
-    _cut(false, h);
+void Processor::cut_to_form(int n) {
+    _cut(false, n);
 }
 
 void Processor::_cut(bool t, int n) {
@@ -171,7 +171,8 @@ void Processor::_cut(bool t, int n) {
         Image nowy(this->width, new_height, this->channels);
         for (int i=pom*this->width* this->channels, j=0; i<(pom+new_height)*this->width* this->channels; i++, j++)
             nowy.set_data(j, this->data[i]);
-        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut2_" + std::to_string(i) + ".png";
+        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut_" + std::to_string(num_cut) + ".png";
+        num_cut++;
         nowy.write(nazwa.c_str());
         pom += new_height;
 
@@ -301,7 +302,8 @@ void Processor::_cut_h(bool t, int n) {
         }
 
 
-        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut_hor_" + std::to_string(i) + ".png";
+        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut_hor_" + std::to_string(num_cut) + ".png";
+        num_cut++;
         nowy.write(nazwa.c_str());
         pom += new_width;
 
@@ -350,6 +352,66 @@ Processor& Processor::change_hue(float fHue) {
         data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
         data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
         data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
+    }
+    return *this;
+}
+
+Processor& Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+    size_t len = strlen(txt);
+    SFT_Char c;
+    int32_t dx, dy;
+    uint8_t* dstPx;
+    uint8_t srcPx;
+    uint8_t color[4] = {r, g, b, a};
+
+    for(size_t i = 0;i < len;++i) {
+        if(sft_char(&font.sft, txt[i], &c) != 0) {
+            throw MyException("Font is missing this character!");
+        }
+
+        for(uint16_t sy = 0;sy < c.height;++sy) {
+            dy = sy + y + c.y;
+            if(dy < 0) {
+                continue;
+            }
+            else if(dy >= height) {
+                break;
+            }
+            for(uint16_t sx = 0;sx < c.width;++sx) {
+                dx = sx + x + c.x;
+                if(dx < 0) {
+                    continue;
+                }
+                else if(dx >= width) {
+                    break;
+                }
+                dstPx = &data[(dx + dy * width) * channels];
+                srcPx = c.image[sx + sy * c.width];
+
+                if(srcPx != 0) {
+                    float srcAlpha = (srcPx / 255.f) * (a / 255.f);
+                    float dstAlpha = channels < 4 ? 1 : dstPx[3] / 255.f;
+                    if(srcAlpha > .99 && dstAlpha > .99) {
+                        memcpy(dstPx, color, channels);
+                    }
+                    else {
+                        float outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+                        if(outAlpha < .01) {
+                            memset(dstPx, 0, channels);
+                        }
+                        else {
+                            for(int chnl = 0;chnl < channels;++chnl) {
+                                dstPx[chnl] = (uint8_t)BYTE_BOUND((color[chnl]/255.f * srcAlpha + dstPx[chnl]/255.f * dstAlpha * (1 - srcAlpha)) / outAlpha * 255.f);
+                            }
+                            if(channels > 3) {dstPx[3] = (uint8_t)BYTE_BOUND(outAlpha * 255.f);}
+                        }
+                    }
+                }
+            }
+        }
+
+        x += c.advance;
+        delete c.image;
     }
     return *this;
 }

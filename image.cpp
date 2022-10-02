@@ -18,7 +18,7 @@ Image::Image(const char* filename){
         this->filename = filename;
     }
     else
-        printf("Reading failure! %s \n", filename);
+        throw MyException("Reading failure! \n");
 }
 
 Image::Image(const Image& other){
