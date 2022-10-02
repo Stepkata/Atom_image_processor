@@ -12,6 +12,10 @@
 #include <vector>
 #include <cmath>
 
+#define  Pr  .299
+#define  Pg  .587
+#define  Pb  .114
+
 class Processor: public Image {
 public:
     Processor() = default;
@@ -34,6 +38,7 @@ public:
     Processor& change_hue(float fHue);
     Processor& overlayText(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
                            uint8_t b = 0, uint8_t a = 100);
+    Processor& change_saturation(float change);
     void cut(int n);
     void cut_to_form(int n);
     void cut_horisontal(int n);

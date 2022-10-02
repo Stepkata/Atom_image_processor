@@ -416,3 +416,20 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
     return *this;
 }
 
+Processor &Processor::change_saturation(float change) {
+    change = change>1 ? 1 : change;
+    change = change<0 ? 0:change;
+
+    for(int i=0; i<this->size; i+=channels){
+        float  P=sqrt(
+                data[i]*data[i]*Pr+
+                data[i+1]*data[i+1]*Pg+
+                data[i+2]*data[i+2]*Pb ) ;
+        data[i] = P+(data[i]-P)*change;
+        data[i+1]= P+(data[i+1]-P)*change;
+        data[i+2] = P+(data[i+2]-P)*change;
+    }
+
+    return *this;
+}
+
