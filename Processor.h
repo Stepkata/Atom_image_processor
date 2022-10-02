@@ -11,10 +11,12 @@
 #include <cstring>
 #include <vector>
 #include <cmath>
+#include <thread>
 
 #define  Pr  .299
 #define  Pg  .587
 #define  Pb  .114
+#define NUM_THREADS 8
 
 class Processor: public Image {
 public:

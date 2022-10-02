@@ -8,6 +8,8 @@
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
 
+//@TODO: zamienić niektóre lambdy na funkcje
+
 int Processor::num_cut = 0;
 
 Processor& Processor::grayscale_avg(){
@@ -42,11 +44,20 @@ Processor& Processor::color_mask(float r, float g, float b){
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
     else{
-        for (int i=0; i<size; i+=channels){
-            data[i] *= r;
-            data[i+1] *= g;
-            data[i+2] *= b;
-        }
+        auto functor = [this](int x, float change){
+            for (int i=0; i<size; i+=channels){
+                data[i+x] *= change;
+            }
+        };
+
+        std::thread t0(functor, 0, r);
+        std::thread t1(functor, 1, g);
+        std::thread t2(functor, 2, b);
+
+        t0.join();
+        t1.join();
+        t2.join();
+
     }
     return *this;
 }
@@ -55,9 +66,10 @@ void Processor::cut(int n) {
     _cut(true, n);
 }
 
-Processor& Processor::flip_x() {
+Processor& Processor::flip_x() { //odbicie względem osi x
     uint8_t pom[this->channels];
     uint8_t *ptr1, *ptr2;
+
     for (int y=0; y<this->height; ++y){
         for(int x=0; x< this->width/2; x++){
             ptr1 = &this->data[(x +y*this->width)*channels];
@@ -71,9 +83,10 @@ Processor& Processor::flip_x() {
     return *this;
 }
 
-Processor& Processor::flip_y() {
-    uint8_t pom[this->channels];
+Processor& Processor::flip_y() { //odbicie względem osi y
     uint8_t *ptr1, *ptr2;
+    uint8_t pom[this->channels];
+
     for (int x=0; x<this->width; ++x){
         for(int y=0; y< this->height/2; y++){
             ptr1 = &this->data[(x +y*this->width)*channels];
@@ -86,21 +99,43 @@ Processor& Processor::flip_y() {
     return *this;
 }
 
-Processor &Processor::neon_chromatic_aberration() {
-    for (int y=0; y<this->height; ++y){
+Processor &Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale też zmienia kolory, w każdym razie wygląda fajnie
+    //@TODO; naprawić multithreading
+    std::vector<std::thread> MyThreads;
+
+    auto functor = [this](int y){
         for(int x=0; x< this->width; x++){
             std::swap(this->data[(x +y*this->width)*channels+5], this->data[(x +y*this->width)*channels+30]);
         }
+    };
+
+    for (int y=0; y<this->height; ++y){
+        MyThreads.emplace_back(functor, y);
     }
+
+    for (auto& thread: MyThreads){
+        thread.join();
+    }
+
 
     return *this;
 }
 
-Processor &Processor::purple_chromatic_aberration() {
-    for (int y=0; y<this->height; ++y){
+Processor &Processor::purple_chromatic_aberration() { //chromatic aberration ale żółto foletowe :O @TODO: naprawić multithreading
+    std::vector<std::thread> MyThreads;
+
+    auto functor = [this](int y){
         for(int x=0; x< this->width; x++){
             std::swap(this->data[(x +y*this->width)*channels+2], this->data[(x +y*this->width)*channels+20]);
         }
+    };
+
+    for (int y=0; y<this->height; ++y){
+        MyThreads.emplace_back(functor, y);
+    }
+
+    for (auto& thread: MyThreads){
+        thread.join();
     }
 
     return *this;
@@ -109,6 +144,7 @@ Processor &Processor::purple_chromatic_aberration() {
 Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
     uint8_t *cropped_data = new uint8_t [cw*ch*this->channels];
     memset(cropped_data, 0, cw*ch*this->channels);
+
     for (uint16_t y=0; y< ch; ++y){
         if(y+cy >= height)
             break;
@@ -147,12 +183,40 @@ Processor &Processor::distortion_filter(float r, float g, float b) {
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
     else{
-        for (int i=0; i<size; i+=channels){
+        auto functor0 = [this](float change){
+            for (int i=0; i<size; i+=channels){
+                uint8_t f = data[i], s = data[i+1], t = data[i+2];
+                data[i] = data[i]==255?data[i]: f*change;
+
+            }
+        };
+        auto functor1 = [this](float change){
+            for (int i=0; i<size; i+=channels){
+                uint8_t f = data[i], s = data[i+1], t = data[i+2];
+                data[i+1] = data[i+1]==255? data[i+1]: s*change;
+            }
+        };
+        auto functor2 = [this](float change){
+            for (int i=0; i<size; i+=channels){
+                uint8_t f = data[i], s = data[i+1], t = data[i+2];
+                data[i+2] = data[i+2]==255? data[i+2]: t*change;
+            }
+        };
+
+        std::thread t0(functor0, r);
+        std::thread t1(functor1, g);
+        std::thread t2(functor2, b);
+
+        t0.join();
+        t1.join();
+        t2.join();
+
+        /*for (int i=0; i<size; i+=channels){
             uint8_t f = data[i], s = data[i+1], t = data[i+2];
             data[i] = data[i]==255?data[i]: f*r;
             data[i+1] = data[i+1]==255? data[i+1]: s*g;
             data[i+2] = data[i+2]==255? data[i+2]: t*b;
-        }
+        }*/
     }
     return *this;
 }
@@ -165,6 +229,8 @@ void Processor::_cut(bool t, int n) {
     int x = t? int(this->height/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
     int m = t? n : int(this->height/n)+1;
     int pom = 0;
+
+
     for (int i=0; i<m; i++){
         //skopiuj część obrazka do nowej tablicy
         int new_height = (i==m-1) ? this->height-pom : x;
@@ -180,7 +246,7 @@ void Processor::_cut(bool t, int n) {
 
 }
 
-Processor &Processor::overlay(Processor& image, int x, int y) {
+Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multithreading
     uint8_t *source;
     uint8_t *destination;
     for(int sy = 0; sy<image.get_height(); ++sy){
@@ -223,7 +289,7 @@ Processor &Processor::overlay(Processor& image, int x, int y) {
     return *this;
 }
 
-Processor& Processor::operator+=(Processor& other){
+Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     if (this!= &other){
         if (this->channels != other.get_channels())
             throw MyException("Incopatibile channels!");
@@ -261,7 +327,7 @@ Processor &Processor::fuse(std::vector<const char*> filenames) {
     return *this;
 }
 
-Processor &Processor::rotate_right() {
+Processor &Processor::rotate_right() { //@TODO: multithreading
     uint8_t *new_data = new uint8_t [this->size];
     int new_height = this->width;
     int new_width = this->height;
@@ -288,6 +354,8 @@ void Processor::_cut_h(bool t, int n) {
     int x = t? int(this->width/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
     int m = t? n : int(this->width/n)+1;
     int pom = 0;
+
+
     for (int i=0; i<m; i++){
         //skopiuj część obrazka do nowej tablicy
         int new_width = (i==m-1) ? this->width-pom : x;
@@ -348,11 +416,37 @@ Processor& Processor::change_hue(float fHue) {
                           {1.0f/3.0f * (1.0f - cosA) - sqrtf(1.0f/3.0f) * sinA, 1.0f/3.0f * (1.0f - cosA) + sqrtf(1.0f/3.0f) * sinA, cosA + 1.0f/3.0f * (1.0f - cosA)}};
     //Use the rotation matrix to convert the RGB directly
 
-    for(int i=0; i<this->size; i+=channels){
+    auto functor0 = [this](float matrix[3][3]){
+        for(int i=0; i<this->size; i+=channels){
+            data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
+        }
+    };
+    auto functor1 = [this](float matrix[3][3]){
+        for(int i=0; i<this->size; i+=channels){
+            data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
+        }
+    };
+    auto functor2 = [this](float matrix[3][3]){
+        for(int i=0; i<this->size; i+=channels){
+            data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
+        }
+    };
+
+    std::thread t0(functor0, matrix);
+    std::thread t1(functor1, matrix);
+    std::thread t2(functor2, matrix);
+
+    t0.join();
+    t1.join();
+    t2.join();
+
+
+    /*for(int i=0; i<this->size; i+=channels){
         data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
         data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
         data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
-    }
+    }*/
+
     return *this;
 }
 
@@ -419,6 +513,7 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
 Processor &Processor::change_saturation(float change) {
     change = change>1 ? 1 : change;
     change = change<0 ? 0:change;
+
 
     for(int i=0; i<this->size; i+=channels){
         float  P=sqrt(
