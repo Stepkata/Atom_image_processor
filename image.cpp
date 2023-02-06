@@ -2,11 +2,13 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 
 #include "image.h"
+
+#include <utility>
 #include "stb_image.h"
 #include "stb_image_write.h"
 
 
-MyException::MyException(const std::string& message) : message_(message) {
+MyException::MyException(std::string  message) : message_(std::move(message)) {
 
 }
 

@@ -9,7 +9,7 @@ int main() {
     //Font Mono(R"(C:\Users\keste\Downloads\JetBrainsMono-2.242\fonts\ttf\JetBrainsMono-Bold.ttf)", 500);
     //test.overlayText("mlem", Mono, 500, 200, 120, 24, 30, 100); // @TODO: nie działają kolory
 
-    test.purple_chromatic_aberration();
+    test.distortion_filter(3, 0.4, 0.2);
     test.write(R"(C:\Users\keste\CLionProjects\ImageProcessor\images\new21.png)");
 
 

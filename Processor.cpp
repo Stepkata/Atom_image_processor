@@ -9,8 +9,6 @@
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
 
-//@TODO: zamienić niektóre lambdy na funkcje, naprawić multithreading
-
 int Processor::num_cut = 0;
 
 /**
@@ -94,7 +92,7 @@ void Processor::grayscale_lum() {
  */
 Processor& Processor::_grayscale_lum(int start, int end){
     for(int i =start; i<end; i+=channels){
-        int gray = 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];
+        auto gray = (int)(0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2]);
         memset(data+i, gray, 3); //Ustawia pierwsze num bajtów bloku wskazywanego przez ptr na value (traktowane jako unsigned char).
     }
 
@@ -113,7 +111,7 @@ void Processor::color_mask(float r, float g, float b){
     if (channels <3){
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
-    else if (r > 1 || g > 1 || b > 1){
+    else if (r > 1 || g > 1 || b > 1 || r<0 || g<0 || b <0){
         printf("Invalid input");
     }
     else
@@ -147,18 +145,14 @@ void Processor::color_mask(float r, float g, float b){
  */
 Processor& Processor::_color_mask(int start, int end, const float change[]) {
     for (int i=start; i<end; i+=channels){
-        data[i] *= change[0];
-        data[i+1] *= change[1];
-        data[i+2] *= change[2];
+        data[i] = (uint8_t)((float)data[i]*change[0]);
+        data[i+1] = (uint8_t)((float)data[i+1]*change[1]);
+        data[i+2] = (uint8_t)((float)data[i+2]*change[2]);
     }
 
     return *this;
 }
 
-//@TODO
-void Processor::cut(int n) {
-    _cut(true, n);
-}
 
 //@TODO: usunąć zduplikowany kod
 
@@ -324,6 +318,7 @@ Processor& Processor::_pca(int start, int end){
 
 /*
  * function that crops the image by performing copy operation
+ * @TODO multithreading
  */
 Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
     auto *cropped_data = new uint8_t [cw*ch*this->channels];
@@ -391,79 +386,62 @@ Processor& Processor::_chromatic_aberration(int start, int end, int n){
     return *this;
 }
 
-/*
- * @brief function that uses corruption-like filter
+/**
+ * @brief implements multithreading for @_distortion() - filter that creates corrupted file effect
+ * @param r - change in r value
+ * @param g - change in r value
+ * @param b - change in r value
  */
-Processor &Processor::distortion_filter(float r, float g, float b) { //@TODO: naprawić multithreading
+void Processor::distortion_filter(float r, float g, float b) {
     if (channels <3){
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
-    else{
-        auto functor0 = [this](float change){
-            for (int i=0; i<size; i+=channels){
-                uint8_t f = data[i], s = data[i+1], t = data[i+2];
-                data[i] = data[i]==255?data[i]: f*change;
-
-            }
-        };
-        auto functor1 = [this](float change){
-            for (int i=0; i<size; i+=channels){
-                uint8_t f = data[i], s = data[i+1], t = data[i+2];
-                data[i+1] = data[i+1]==255? data[i+1]: s*change;
-            }
-        };
-        auto functor2 = [this](float change){
-            for (int i=0; i<size; i+=channels){
-                uint8_t f = data[i], s = data[i+1], t = data[i+2];
-                data[i+2] = data[i+2]==255? data[i+2]: t*change;
-            }
-        };
-
-        std::thread t0(functor0, r);
-        std::thread t1(functor1, g);
-        std::thread t2(functor2, b);
-
-        t0.join();
-        t1.join();
-        t2.join();
-
-        /*for (int i=0; i<size; i+=channels){
-            uint8_t f = data[i], s = data[i+1], t = data[i+2];
-            data[i] = data[i]==255?data[i]: f*r;
-            data[i+1] = data[i+1]==255? data[i+1]: s*g;
-            data[i+2] = data[i+2]==255? data[i+2]: t*b;
-        }*/
+    else if ( r<0 || g<0 || b <0){
+        printf("Invalid input");
     }
+    else
+    {
+        Resdiv re(num_channels(), THREADS);
+        float change[] = {r, g, b};
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_distortion, this, i * channels * re.c,
+                    (i + 1) * channels * re.c + (i == THREADS - 1 ? re.r * channels : 0),
+                    change
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
+        }
+    }
+
+}
+
+
+/**
+ * @brief filter that creates corrupted file effect on part of an image
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @param change - array containing values of changes in the rgb
+ * @return this
+ */
+Processor& Processor::_distortion(int start, int end, const float change[]) {
+    for (int i=start; i<end; i+=channels){
+            float f = data[i], s = data[i+1], t = data[i+2];
+            data[i] = data[i]==255?data[i]: (uint8_t )(f*change[0]);
+            data[i+1] = data[i+1]==255? data[i+1]: (uint8_t )(s*change[1]);
+            data[i+2] = data[i+2]==255? data[i+2]: (uint8_t )(t*change[2]);
+        }
     return *this;
 }
 
-void Processor::cut_to_form(int n) {
-    _cut(false, n);
-}
-
-void Processor::_cut(bool t, int n) {
-    int x = t? int(this->height/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
-    int m = t? n : int(this->height/n)+1;
-    int pom = 0;
-
-
-    for (int i=0; i<m; i++){
-        //skopiuj część obrazka do nowej tablicy
-        int new_height = (i==m-1) ? this->height-pom : x;
-        Image nowy(this->width, new_height, this->channels);
-        for (int i=pom*this->width* this->channels, j=0; i<(pom+new_height)*this->width* this->channels; i++, j++)
-            nowy.set_data(j, this->data[i]);
-        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut_" + std::to_string(num_cut) + ".png";
-        num_cut++;
-        nowy.write(nazwa.c_str());
-        pom += new_height;
-
-    }
-
-}
 
 /*
  * @brief funtion that overlays one image over the other
+ * @TODO
  */
 Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multithreading
     uint8_t *source;
@@ -481,8 +459,8 @@ Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multit
             source = &image.get_data()[(sx + sy*image.get_width())*image.get_channels()];
             destination = &data[(sx + x + (sy+y)*width)*channels];
 
-            float src_alpha = image.get_channels() < 4 ? 1: source[3]/255.f;
-            float dest_alpha = this->channels < 4 ? 1: destination[3]/255.f;
+            float src_alpha = image.get_channels() < 4 ? 1: (float)source[3]/255.f;
+            float dest_alpha = this->channels < 4 ? 1: (float)destination[3]/255.f;
 
 
             if(src_alpha ==1 && dest_alpha ==1){
@@ -511,6 +489,7 @@ Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multit
 
 /*
  * @brief += operator overload
+ * @TODO
  */
 Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     if (this!= &other){
@@ -544,6 +523,7 @@ Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
 
 /*
  * @brief function that creates a fusion out of a vector of images using addition of Processor objects
+ * @TODO
  */
 Processor &Processor::fuse(const std::vector<const char*>& filenames) {
     for (auto name : filenames){
@@ -555,18 +535,19 @@ Processor &Processor::fuse(const std::vector<const char*>& filenames) {
 
 /*
  * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
+ * //@TODO: multithreading
  */
-Processor &Processor::rotate_right() { //@TODO: multithreading
+Processor &Processor::rotate_right() {
     auto *new_data = new uint8_t [this->size];
     int new_height = this->width;
     int new_width = this->height;
 
-    int h=this->height, w=this->width, ch = this->channels, pom = 0, index = 0, pom2=0;
+    int w=this->width, ch = this->channels, pom = 0, index = 0, pom2=0;
 
     for(int i=0; i<w; i++, pom2+=ch){
         pom = pom2;
-        for(int j=0; j<h; j++, pom += w*ch)
-            for(int n=0; n<ch; n++, index++){
+        for(int j=0; j<this->height; j++, pom += this->width*this->channels)
+            for(int n=0; n<this->channels; n++, index++){
                 new_data[index] = data[pom + n];
             }
     }
@@ -579,49 +560,16 @@ Processor &Processor::rotate_right() { //@TODO: multithreading
     return *this;
 }
 
-void Processor::_cut_h(bool t, int n) {
-    int x = t? int(this->width/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
-    int m = t? n : int(this->width/n)+1;
-    int pom = 0;
 
-
-    for (int i=0; i<m; i++){
-        //skopiuj część obrazka do nowej tablicy
-        int new_width = (i==m-1) ? this->width-pom : x;
-        Image nowy(new_width, this->height, this->channels);
-
-        int j=0;
-        int pomi = pom*channels;
-        for (int k=0; k<this->height; k++){
-            for(int i=pomi; i<new_width*channels+pomi; i++, j++)
-                nowy.set_data(j, this->data[i]);
-            pomi+=this->width*this->channels;
-        }
-
-
-        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_hor_)" + std::to_string(num_cut) + ".png";
-        num_cut++;
-        nowy.write(nazwa.c_str());
-        pom += new_width;
-
-    }
-}
-
-void Processor::cut_horisontal(int n) {
-    _cut_h(1, n);
-}
-
-void Processor::cut_horisontal_to_form(int n) {
-    _cut_h(0, n);
-}
 
 /**
  * @brief function that resizes the image using stbir library function
  * @note alpha channel might cause issues
+ * @TODO: zrobić wersję z alphą
  * @param new_w
  * @param new_h
  */
-void Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
+void Processor::resize(int new_w, int new_h) {
     auto *new_data = new uint8_t [new_w*new_h*this->channels];
     int success;
     success = stbir_resize_uint8((const uint8_t*)this->data, this->width, this->height, 0,
@@ -634,6 +582,12 @@ void Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
     this->height = new_h;
 }
 
+
+/**
+ * clamps the value to fit into [0, 255]
+ * @param v - value to be clamped
+ * @return
+ */
 uint8_t Processor::clamp(float v) {
     if (v < 0)
         return 0;
@@ -642,7 +596,13 @@ uint8_t Processor::clamp(float v) {
     return (uint8_t)v;
 }
 
-Processor& Processor::change_hue(float fHue) {
+
+/**
+ * @brief calculates convolution matrix based on fHue value and implements multithreading for @_change_hue() that
+ * handles hue shift
+ * @param fHue - value of the hue shift, any value possible - treated like trigonometric degrees
+ */
+void Processor::change_hue(float fHue) {
     float cosA = cos(fHue*3.14159265f/180); //convert degrees to radians
     float sinA = sin(fHue*3.14159265f/180); //convert degrees to radians
     //calculate the rotation matrix, only depends on Hue
@@ -651,40 +611,41 @@ Processor& Processor::change_hue(float fHue) {
                           {1.0f/3.0f * (1.0f - cosA) - sqrtf(1.0f/3.0f) * sinA, 1.0f/3.0f * (1.0f - cosA) + sqrtf(1.0f/3.0f) * sinA, cosA + 1.0f/3.0f * (1.0f - cosA)}};
     //Use the rotation matrix to convert the RGB directly
 
-    auto functor0 = [this](float matrix[3][3]){
-        for(int i=0; i<this->size; i+=channels){
-            data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
-        }
-    };
-    auto functor1 = [this](float matrix[3][3]){
-        for(int i=0; i<this->size; i+=channels){
-            data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
-        }
-    };
-    auto functor2 = [this](float matrix[3][3]){
-        for(int i=0; i<this->size; i+=channels){
-            data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
-        }
-    };
+    Resdiv r(num_channels(), THREADS);
 
-    std::thread t0(functor0, matrix);
-    std::thread t1(functor1, matrix);
-    std::thread t2(functor2, matrix);
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_change_hue, this, i * channels * r.c,
+                (i + 1) * channels * r.c + (i == THREADS - 1 ? r.r * channels : 0),
+                matrix
+        );
 
-    t0.join();
-    t1.join();
-    t2.join();
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+
+}
 
 
-    /*for(int i=0; i<this->size; i+=channels){
-        data[i] = clamp(data[i]*matrix[0][0] + data[i+1]*matrix[0][1] + data[i+2]*matrix[0][2]);
-        data[i+1]= clamp(data[i]*matrix[1][0] + data[i+1]*matrix[1][1] + data[i+2]*matrix[1][2]);
-        data[i+2] = clamp(data[i]*matrix[2][0] + data[i+1]*matrix[2][1] + data[i+2]*matrix[2][2]);
-    }*/
-
+/**
+ * @brief uses the convolution matrix to calculate hue shift for the rgb values
+ * @param start place in the data where the function starts
+ * @param end place in the data where the function ends
+ * @param matrix matrix used to calculate shift
+ * @return this
+ */
+Processor& Processor::_change_hue(int start, int end, float matrix[3][3]) {
+    for (int i = start; i < end; i += channels) {
+        data[i] = clamp((float)data[i] * matrix[0][0] + (float)data[i + 1] * matrix[0][1] + (float)data[i + 2] * matrix[0][2]);
+        data[i + 1] = clamp((float)data[i] * matrix[1][0] + (float)data[i + 1] * matrix[1][1] + (float)data[i + 2] * matrix[1][2]);
+        data[i + 2] = clamp((float)data[i] * matrix[2][0] + (float)data[i + 1] * matrix[2][1] + (float)data[i + 2] * matrix[2][2]);
+    }
     return *this;
 }
 
+//@TODO multithreading + kolor nie działa???
 Processor& Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     size_t len = strlen(txt);
     SFT_Char c{};
@@ -745,21 +706,100 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
     return *this;
 }
 
-Processor &Processor::change_saturation(float change) {
-    change = change>1 ? 1 : change;
-    change = change<0 ? 0:change; //make sure change is a legal amount
+/**
+ * @brief implements multithreading for @_change_saturation() function, changes saturation of colors in the image
+ * @param change - the amount of shift in the saturation, must be between 0 and 1
+ */
+void Processor::change_saturation(float change) {
+    change = change > 1 ? 1 : change;
+    change = change < 0 ? 0 : change; //make sure change is a legal amount
 
+    Resdiv r(num_channels(), THREADS);
 
-    for(int i=0; i<this->size; i+=channels){
-        float  P=sqrt(
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_change_saturation, this, i * channels * r.c,
+                (i + 1) * channels * r.c + (i == THREADS - 1 ? r.r * channels : 0),
+                change
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+}
+
+/**
+ * @brief changes saturation of a part of the image using convolution matrix
+ * @param start place in the data where the function starts
+ * @param end place in the data where the function ends
+ * @param change
+ * @return
+ */
+Processor &Processor::_change_saturation(int start, int end, float change) {
+    for(int i=start; i<end; i+=channels){
+        double  P=sqrt(
                 data[i]*data[i]*Pr+
                 data[i+1]*data[i+1]*Pg+
                 data[i+2]*data[i+2]*Pb ) ;
-        data[i] = P+(data[i]-P)*change;
-        data[i+1]= P+(data[i+1]-P)*change;
-        data[i+2] = P+(data[i+2]-P)*change;
+        data[i] = (uint8_t)(P+(data[i]-P)*change);
+        data[i+1]= (uint8_t)(P+(data[i+1]-P)*change);
+        data[i+2] = (uint8_t)(P+(data[i+2]-P)*change);
     }
 
     return *this;
+}
+
+//@TODO
+void Processor::cut(bool vertical, bool to_parts, int n) {
+    if(vertical){
+        int x = to_parts? int(this->height/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
+        int m = to_parts? n : int(this->height/n)+1;
+        _cut(x, m);
+    }
+    else{
+        int x = to_parts? int(this->width/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
+        int m = to_parts? n : int(this->width/n)+1;
+        _cut_h(x, m);
+    }
+}
+
+//@TODO
+void Processor::_cut(int x, int m) {
+
+    for (int i=0; i<m; i++){
+        //skopiuj część obrazka do nowej tablicy
+        int new_height = (i==m-1) ? this->height-i*x : x;
+        Image nowy(this->width, new_height, this->channels);
+        for (int z=i*x*this->width*this->channels, j=0; z<(i+1)*x*this->width*this->channels; z++, j++)
+            nowy.set_data(j, this->data[z]);
+        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_)" + std::to_string(num_cut) + ".png";
+        num_cut++;
+        nowy.write(nazwa.c_str());
+
+    }
+
+}
+
+//@TODO
+void Processor::_cut_h(int x, int m) {
+    for (int i=0; i<m; i++){
+        //skopiuj część obrazka do nowej tablicy
+        int new_width = (i==m-1) ? this->width-i*x : x;
+        Image nowy(new_width, this->height, this->channels);
+
+        int j=0;
+        int pomi = i*x*channels;
+        for (int k=0; k<this->height; k++){
+            for(int z=pomi; z<new_width*channels+pomi; z++, j++)
+                nowy.set_data(j, this->data[z]);
+            pomi+=this->width*this->channels;
+        }
+
+        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_hor_)" + std::to_string(num_cut) + ".png";
+        num_cut++;
+        nowy.write(nazwa.c_str());
+    }
 }
 

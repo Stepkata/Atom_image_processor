@@ -16,7 +16,7 @@ class MyException: public std::exception {
 private:
     std::string message_;
 public:
-    explicit MyException(const std::string& message);
+    explicit MyException(std::string  message);
     const char* what() const noexcept override {
         return message_.c_str();
     }
