@@ -3,74 +3,196 @@
 
 #include "Processor.h"
 #include "stb_image_resize.h"
+#include "Resdiv.h"
 
 #include <iostream>
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
 
-//@TODO: zamienić niektóre lambdy na funkcje
+//@TODO: zamienić niektóre lambdy na funkcje, naprawić multithreading
 
 int Processor::num_cut = 0;
 
-Processor& Processor::grayscale_avg(){
+/**
+ * @brief interface function implementing multithreading for @_grayscale_avg() function
+ * @param r - the size of one "part" of channels per a thread, including the rest of division
+ * @return void
+ */
+void Processor::grayscale_avg() {
     if (channels <3){
-        printf("Too little channels, the image is already grayscale!");
+    printf("Too little channels, the image is already grayscale!");
     }
-    else{
-        for(int i =0; i<this->size; i+=channels){
-            int gray = (data[i]+data[i+1]+data[i+2])/3;
-            memset(data+i, gray, 3); //Ustawia pierwsze num bajtów bloku wskazywanego przez ptr na value (traktowane jako unsigned char).
+    else
+    {
+        Resdiv r(num_channels(), THREADS);
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_grayscale_avg, this, i * channels * r.c,
+                    (i + 1) * channels * r.c + (i == THREADS - 1 ? r.r * channels : 0)
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
         }
     }
+}
+
+
+/**
+ * @brief function that changes a portion of image into grayscale using rgb average
+ * @param start place in the data where the function starts
+ * @param end place in the data where the function ends
+ * @return this
+ */
+Processor& Processor::_grayscale_avg(int start, int end){
+
+    for(int i =start; i<end; i+=channels){
+        int gray = (data[i]+data[i+1]+data[i+2])/3;
+        memset(data+i, gray, 3); //Ustawia pierwsze num bajtów bloku wskazywanego przez ptr na value (traktowane jako unsigned char).
+    }
+
     return *this;
 }
 
-Processor& Processor::grayscale_lum(){ //the better grayscale
+/**
+ * @brief interface function implementing multithreading for @_grayscale_lum() function
+ * @param r - the size of one "part" of channels per a thread, including the rest of division
+ * @return void
+ */
+void Processor::grayscale_lum() {
     if (channels <3){
         printf("Too little channels, the image is already grayscale!");
     }
-    else{
-        for(int i =0; i<this->size; i+=channels){
-            int gray = 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];
-            memset(data+i, gray, 3); //Ustawia pierwsze num bajtów bloku wskazywanego przez ptr na value (traktowane jako unsigned char).
+    else
+    {
+        Resdiv r(num_channels(), THREADS);
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_grayscale_lum, this, i * channels * r.c,
+                    (i + 1) * channels * r.c + (i == THREADS - 1 ? r.r * channels : 0)
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
         }
     }
+}
+
+
+/**
+ * @brief function that changes a portion of image into grayscale using weighted rgb average - produces higher quality
+ * images than @grayscale_avg()
+ * @param start place in the data where the function starts
+ * @param end place in the data where the function ends
+ * @return this
+ */
+Processor& Processor::_grayscale_lum(int start, int end){
+    for(int i =start; i<end; i+=channels){
+        int gray = 0.2126*data[i]+0.7152*data[i+1]+0.0722*data[i+2];
+        memset(data+i, gray, 3); //Ustawia pierwsze num bajtów bloku wskazywanego przez ptr na value (traktowane jako unsigned char).
+    }
+
     return *this;
 
 }
 
-Processor& Processor::color_mask(float r, float g, float b){
+
+/**
+ * @brief applies a color mask over the image - interface function implementing multithreading
+ * @param r - value of change in the red color, between 0 and 1
+ * @param g - value of change in the green color, between 0 and 1
+ * @param b - value of change in the blue color, between 0 and 1
+ */
+void Processor::color_mask(float r, float g, float b){
     if (channels <3){
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
-    else{
-        auto functor = [this](int x, float change){
-            for (int i=0; i<size; i+=channels){
-                data[i+x] *= change;
-            }
-        };
-
-        std::thread t0(functor, 0, r);
-        std::thread t1(functor, 1, g);
-        std::thread t2(functor, 2, b);
-
-        t0.join();
-        t1.join();
-        t2.join();
-
+    else if (r > 1 || g > 1 || b > 1){
+        printf("Invalid input");
     }
+    else
+    {
+        Resdiv re(num_channels(), THREADS);
+        float change[] = {r, g, b};
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_color_mask, this, i * channels * re.c,
+                    (i + 1) * channels * re.c + (i == THREADS - 1 ? re.r * channels : 0),
+                    change
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
+        }
+    }
+
+}
+
+
+/**
+ * @brief applies changes to colors of a part of the image creating a color mask
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @param change - array containing values of changes in the rgb
+ * @return this
+ */
+Processor& Processor::_color_mask(int start, int end, const float change[]) {
+    for (int i=start; i<end; i+=channels){
+        data[i] *= change[0];
+        data[i+1] *= change[1];
+        data[i+2] *= change[2];
+    }
+
     return *this;
 }
 
+//@TODO
 void Processor::cut(int n) {
     _cut(true, n);
 }
 
-Processor& Processor::flip_x() { //odbicie względem osi x
+//@TODO: usunąć zduplikowany kod
+
+/**
+ * @brief interface function that implements multithreading for @_flip_x()
+ */
+void Processor::flip_x() {
+    Resdiv re(this->height, THREADS);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_flip_x, this, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+
+}
+
+/**
+ * @brief function that flips parts of the image vertically
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @return
+ */
+Processor& Processor::_flip_x(int start, int end) {
     uint8_t pom[this->channels];
     uint8_t *ptr1, *ptr2;
 
-    for (int y=0; y<this->height; ++y){
+    for (int y=start; y<end; ++y){
         for(int x=0; x< this->width/2; x++){
             ptr1 = &this->data[(x +y*this->width)*channels];
             ptr2 = &this->data[((this->width-1-x)+y*this->width)*channels];
@@ -83,11 +205,37 @@ Processor& Processor::flip_x() { //odbicie względem osi x
     return *this;
 }
 
-Processor& Processor::flip_y() { //odbicie względem osi y
+/**
+ * @brief interface function that implements multithreading for @_flip_y()
+ */
+void Processor::flip_y() {
+    Resdiv re(width, THREADS);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_flip_y, this, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+
+}
+
+/**
+ * @brief function that flips parts of the image horisontally
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @return this
+ */
+Processor& Processor::_flip_y(int start, int end) { //odbicie względem osi y
     uint8_t *ptr1, *ptr2;
     uint8_t pom[this->channels];
 
-    for (int x=0; x<this->width; ++x){
+    for (int x=start; x<end; ++x){
         for(int y=0; y< this->height/2; y++){
             ptr1 = &this->data[(x +y*this->width)*channels];
             ptr2 = &this->data[(x+(this->height-1-y)*this->width)*channels];
@@ -99,50 +247,86 @@ Processor& Processor::flip_y() { //odbicie względem osi y
     return *this;
 }
 
-Processor &Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale też zmienia kolory, w każdym razie wygląda fajnie
-    //@TODO; naprawić multithreading
-    std::vector<std::thread> MyThreads;
 
-    auto functor = [this](int y){
+
+/**
+ * @brief funtion that aplies multithreading to @_neon_ca() that adds a filter altering
+ * colors and adding a variation of chromatic aberration
+ * @note it looks cool
+ */
+void Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale też zmienia kolory, w każdym razie wygląda fajnie
+    Resdiv re(this->height, THREADS);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_neon_ca, this, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+
+}
+
+/**
+ * @brief funtion that adds a filter altering colors and adding a variation of chromatic aberration
+ * @param start - the point in data where the function starts
+ * @param end - the point in data where the function ends
+ * @return this
+ */
+Processor& Processor::_neon_ca(int start, int end){
+    for (int y=start; y<end; ++y){
         for(int x=0; x< this->width; x++){
             std::swap(this->data[(x +y*this->width)*channels+5], this->data[(x +y*this->width)*channels+30]);
         }
-    };
-
-    for (int y=0; y<this->height; ++y){
-        MyThreads.emplace_back(functor, y);
     }
-
-    for (auto& thread: MyThreads){
-        thread.join();
-    }
-
-
     return *this;
 }
 
-Processor &Processor::purple_chromatic_aberration() { //chromatic aberration ale żółto foletowe :O @TODO: naprawić multithreading
-    std::vector<std::thread> MyThreads;
+/**
+ * @brief funtion that aplies multithreading to @_bca() that adds a variation of chromatic aberration
+ * @note it looks cool
+ */
+void Processor::purple_chromatic_aberration() {
+    Resdiv re(this->height, THREADS);
 
-    auto functor = [this](int y){
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_pca, this, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+
+}
+
+/**
+ * @brief funtion that adds a variation of chromatic aberration
+ * @param start - the point in data where the function starts
+ * @param end - the point in data where the function ends
+ * @return this
+ */
+Processor& Processor::_pca(int start, int end){
+    for (int y=start; y<end; ++y){
         for(int x=0; x< this->width; x++){
             std::swap(this->data[(x +y*this->width)*channels+2], this->data[(x +y*this->width)*channels+20]);
         }
-    };
-
-    for (int y=0; y<this->height; ++y){
-        MyThreads.emplace_back(functor, y);
     }
-
-    for (auto& thread: MyThreads){
-        thread.join();
-    }
-
     return *this;
 }
 
+/*
+ * function that crops the image by performing copy operation
+ */
 Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
-    uint8_t *cropped_data = new uint8_t [cw*ch*this->channels];
+    auto *cropped_data = new uint8_t [cw*ch*this->channels];
     memset(cropped_data, 0, cw*ch*this->channels);
 
     for (uint16_t y=0; y< ch; ++y){
@@ -165,20 +349,52 @@ Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
     return *this;
 }
 
-Processor &Processor::chromatic_aberration(int n) {
+/**
+ * @brief interface function implementing multithreading for @_chromatic_aberration function
+ * @param n the offset of chromatic aberration
+ */
+void Processor::chromatic_aberration(int n) {
     if (channels <3){
         printf("Too little channels, the image is grayscale and cannot be modified with a chromatic aberration filter!");
     }
-    else{
-        for (int i=0; i<size; i+=channels){
-            if (i+n*channels < size)
-                data[i] = data[i+n*channels];
+    else
+    {
+        Resdiv re(num_channels(), THREADS);
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_chromatic_aberration, this, i * channels * re.c,
+                    (i + 1) * channels * re.c + (i == THREADS - 1 ? re.r * channels : 0),
+                    n
+            );
+
         }
+        for (auto &t: threads) {
+            t.join();
+        }
+    }
+}
+
+/**
+ * @braief function applying chromatic aberration in part of the image
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @param n - offset
+ * @return this
+ */
+Processor& Processor::_chromatic_aberration(int start, int end, int n){
+    for (int i=start; i<end; i+=channels) {
+        if (i + n * channels < size)
+            data[i] = data[i + n * channels];
     }
     return *this;
 }
 
-Processor &Processor::distortion_filter(float r, float g, float b) {
+/*
+ * @brief function that uses corruption-like filter
+ */
+Processor &Processor::distortion_filter(float r, float g, float b) { //@TODO: naprawić multithreading
     if (channels <3){
         printf("Too little channels, the image is grayscale and cannot be modified with a color mask!");
     }
@@ -246,6 +462,9 @@ void Processor::_cut(bool t, int n) {
 
 }
 
+/*
+ * @brief funtion that overlays one image over the other
+ */
 Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multithreading
     uint8_t *source;
     uint8_t *destination;
@@ -289,6 +508,10 @@ Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multit
     return *this;
 }
 
+
+/*
+ * @brief += operator overload
+ */
 Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     if (this!= &other){
         if (this->channels != other.get_channels())
@@ -302,7 +525,7 @@ Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
         int new_height = this->height+other.get_height();
         int new_size = this->size + other.get_size();
 
-        uint8_t *new_data = new uint8_t [new_size];
+        auto *new_data = new uint8_t [new_size];
         int i =0;
         for(; i<this->size; i++){
             memcpy(&new_data[i], &data[i], channels); //@TODO: zrobić to lepiej
@@ -319,7 +542,10 @@ Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     return *this;
 }
 
-Processor &Processor::fuse(std::vector<const char*> filenames) {
+/*
+ * @brief function that creates a fusion out of a vector of images using addition of Processor objects
+ */
+Processor &Processor::fuse(const std::vector<const char*>& filenames) {
     for (auto name : filenames){
         Processor other(name);
         *this+=other;
@@ -327,8 +553,11 @@ Processor &Processor::fuse(std::vector<const char*> filenames) {
     return *this;
 }
 
+/*
+ * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
+ */
 Processor &Processor::rotate_right() { //@TODO: multithreading
-    uint8_t *new_data = new uint8_t [this->size];
+    auto *new_data = new uint8_t [this->size];
     int new_height = this->width;
     int new_width = this->height;
 
@@ -370,7 +599,7 @@ void Processor::_cut_h(bool t, int n) {
         }
 
 
-        std::string nazwa = "C:\\Users\\keste\\CLionProjects\\ImageProcessor\\images\\cut_hor_" + std::to_string(num_cut) + ".png";
+        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_hor_)" + std::to_string(num_cut) + ".png";
         num_cut++;
         nowy.write(nazwa.c_str());
         pom += new_width;
@@ -386,6 +615,12 @@ void Processor::cut_horisontal_to_form(int n) {
     _cut_h(0, n);
 }
 
+/**
+ * @brief function that resizes the image using stbir library function
+ * @note alpha channel might cause issues
+ * @param new_w
+ * @param new_h
+ */
 void Processor::resize(int new_w, int new_h) { //@TODO: zrobić wersję z alphą
     auto *new_data = new uint8_t [new_w*new_h*this->channels];
     int success;
@@ -452,7 +687,7 @@ Processor& Processor::change_hue(float fHue) {
 
 Processor& Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     size_t len = strlen(txt);
-    SFT_Char c;
+    SFT_Char c{};
     int32_t dx, dy;
     uint8_t* dstPx;
     uint8_t srcPx;
@@ -512,7 +747,7 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
 
 Processor &Processor::change_saturation(float change) {
     change = change>1 ? 1 : change;
-    change = change<0 ? 0:change;
+    change = change<0 ? 0:change; //make sure change is a legal amount
 
 
     for(int i=0; i<this->size; i+=channels){
