@@ -62,13 +62,13 @@ private:
     Processor& _change_saturation(int start, int end, float change);
     Processor& _change_hue(int start, int end, float matrix[3][3]);
     Processor& _distortion(int start, int end, const float change[]);
-    void _cut(int x, int m);
-    void _cut_h(int x, int m);
+    void _cut(int x, int start, int end, int stop);
+    void _cut_h(int x, int start, int end, int stop);
     static uint8_t clamp(float v);
     int num_channels(){
         return (int)size/channels; //@TODO: może zabraknąć inta
     }
-    static int num_cut;
+    static std::atomic<unsigned> num_cut;
 };
 
 

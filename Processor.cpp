@@ -9,7 +9,7 @@
 
 #define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
 
-int Processor::num_cut = 0;
+std::atomic<unsigned> Processor::num_cut = 0;
 
 /**
  * @brief interface function implementing multithreading for @_grayscale_avg() function
@@ -266,7 +266,7 @@ void Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale
 }
 
 /**
- * @brief funtion that adds a filter altering colors and adding a variation of chromatic aberration
+ * @brief adds a filter altering colors and adding a variation of chromatic aberration
  * @param start - the point in data where the function starts
  * @param end - the point in data where the function ends
  * @return this
@@ -281,7 +281,7 @@ Processor& Processor::_neon_ca(int start, int end){
 }
 
 /**
- * @brief funtion that aplies multithreading to @_bca() that adds a variation of chromatic aberration
+ * @brief  applies multithreading to @_bca() that adds a variation of chromatic aberration
  * @note it looks cool
  */
 void Processor::purple_chromatic_aberration() {
@@ -302,7 +302,7 @@ void Processor::purple_chromatic_aberration() {
 }
 
 /**
- * @brief funtion that adds a variation of chromatic aberration
+ * @brief adds a variation of chromatic aberration
  * @param start - the point in data where the function starts
  * @param end - the point in data where the function ends
  * @return this
@@ -345,7 +345,7 @@ Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
 }
 
 /**
- * @brief interface function implementing multithreading for @_chromatic_aberration function
+ * @brief implements multithreading for @_chromatic_aberration function
  * @param n the offset of chromatic aberration
  */
 void Processor::chromatic_aberration(int n) {
@@ -439,10 +439,7 @@ Processor& Processor::_distortion(int start, int end, const float change[]) {
 }
 
 
-/*
- * @brief funtion that overlays one image over the other
- * @TODO
- */
+//@TODO: multithreading
 Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multithreading
     uint8_t *source;
     uint8_t *destination;
@@ -462,24 +459,20 @@ Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multit
             float src_alpha = image.get_channels() < 4 ? 1: (float)source[3]/255.f;
             float dest_alpha = this->channels < 4 ? 1: (float)destination[3]/255.f;
 
-
-            if(src_alpha ==1 && dest_alpha ==1){
+            if(src_alpha ==1){ //source with alpha = 1 or grayscale
                 if(image.get_channels() >= this->channels)
                     memcpy(destination, source, channels);
-                else //jeżeli ten drugi jest grayscale @TODO: poprawić bo nie zawsze działa
-                    memset(destination, source[0], channels);
-            }
-
-            else{
-                float out_alpha = src_alpha + dest_alpha*(1-src_alpha);
-                if(out_alpha < .01)
-                    memset(destination, 0, channels);
-                else{
-                    for(int chnl=0; chnl<channels;chnl++)
-                        destination[chnl] = (uint8_t )BYTE_BOUND((source[chnl]/255.f *src_alpha + destination[chnl]/255.f*dest_alpha*(1-src_alpha))/out_alpha*255.f);
-                    if(channels>3)
-                        destination[3] = (uint8_t )BYTE_BOUND(out_alpha*255.f);
+                else
+                {
+                    memcpy(destination, source, image.get_channels());
                 }
+            }
+            else{
+                source[0] = (uint8_t)(src_alpha * source[0] + (1 - src_alpha) * destination[0]);
+                source[1] = (uint8_t)(src_alpha * source[1] + (1 - src_alpha) * destination[1]);
+                source[2] = (uint8_t)(src_alpha * source[2] + (1 - src_alpha) * destination[2]);
+                source[3] = dest_alpha*255.f;
+                memcpy(destination, source, channels);
             }
         }
     }
@@ -652,14 +645,14 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
     int32_t dx, dy;
     uint8_t* dstPx;
     uint8_t srcPx;
-    uint8_t color[4] = {r, g, b, a};
+    int color[4] = {r, g, b, a};
 
     for(size_t i = 0;i < len;++i) {
         if(sft_char(&font.sft, txt[i], &c) != 0) {
             throw MyException("Font is missing this character!");
         }
 
-        for(uint16_t sy = 0;sy < c.height;++sy) {
+        for(int sy = 0;sy < c.height;++sy) {
             dy = sy + y + c.y;
             if(dy < 0) {
                 continue;
@@ -667,7 +660,7 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
             else if(dy >= height) {
                 break;
             }
-            for(uint16_t sx = 0;sx < c.width;++sx) {
+            for(int sx = 0;sx < c.width;++sx) {
                 dx = sx + x + c.x;
                 if(dx < 0) {
                     continue;
@@ -680,7 +673,9 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
 
                 if(srcPx != 0) {
                     float srcAlpha = (srcPx / 255.f) * (a / 255.f);
+                    std::cout<<srcAlpha;
                     float dstAlpha = channels < 4 ? 1 : dstPx[3] / 255.f;
+                    std::cout<<"\n"<<dstAlpha;
                     if(srcAlpha > .99 && dstAlpha > .99) {
                         memcpy(dstPx, color, channels);
                     }
@@ -734,7 +729,7 @@ void Processor::change_saturation(float change) {
  * @brief changes saturation of a part of the image using convolution matrix
  * @param start place in the data where the function starts
  * @param end place in the data where the function ends
- * @param change
+ * @param change the amount of shift in the saturation
  * @return
  */
 Processor &Processor::_change_saturation(int start, int end, float change) {
@@ -751,30 +746,79 @@ Processor &Processor::_change_saturation(int start, int end, float change) {
     return *this;
 }
 
-//@TODO
+/**
+ * @brief implementing multithreading, cuts an image into separate images:
+ * 1. vertically, to a number of specified parts (vertical = true, to_parts = true, n= number of parts)
+ * 2. vertically, to specified size of a part (vertical = true, to_parts = false, n=height of a new part)
+ * 3. horizontally, to a number of specified parts (vertical = false, to_parts = true, n= number of parts)
+ * 4. horizontally, to specified size of a part (vertical = false, to_parts = false, n=weight of a new part)
+ * saves the new images automatically
+ * @param vertical - bool, is the image supposed to be cut vertially
+ * @param to_parts - bool, is the iage supposed to be cut into a number or sized parts
+ * @param n - number or size of parts
+ */
 void Processor::cut(bool vertical, bool to_parts, int n) {
+    std::vector<std::thread> threads;
+
     if(vertical){
         int x = to_parts? int(this->height/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
         int m = to_parts? n : int(this->height/n)+1;
-        _cut(x, m);
+        Resdiv r(m, THREADS);
+
+        for (int i = 0; i <THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_cut,
+                    this,
+                    x,
+                    i*r.c,
+                    (i + 1)* r.c + (i == THREADS - 1 ? r.r : 0),
+                    m
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
+        }
+
     }
     else{
         int x = to_parts? int(this->width/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
         int m = to_parts? n : int(this->width/n)+1;
-        _cut_h(x, m);
+        Resdiv r(m, THREADS);
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_cut_h,
+                    this,
+                    x,
+                    i * r.c,
+                    (i + 1) * r.c + (i == THREADS - 1 ? r.r : 0),
+                    m
+            );
+
+        }
+        for (auto &t: threads) {
+            t.join();
+        }
     }
 }
 
-//@TODO
-void Processor::_cut(int x, int m) {
+/**
+ * @brief creates new images from a part of the image vertically
+ * @param x - height of the new image
+ *  @param start - place in the data where the function starts
+ * @param end - place in the data where the function ends
+ * @param stop - control variable handling uneven division of the original height
+ */
+void Processor::_cut(int x, int start, int end, int stop) {
 
-    for (int i=0; i<m; i++){
+    for (int i=start; i<end; i++){
         //skopiuj część obrazka do nowej tablicy
-        int new_height = (i==m-1) ? this->height-i*x : x;
+        int new_height = (i==stop-1) ? this->height-i*x : x;
         Image nowy(this->width, new_height, this->channels);
-        for (int z=i*x*this->width*this->channels, j=0; z<(i+1)*x*this->width*this->channels; z++, j++)
+        for (int z = i * x * this->width * this->channels, j = 0;
+             z < (i*x+ new_height) * this->width * this->channels; z++, j++)
             nowy.set_data(j, this->data[z]);
-        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_)" + std::to_string(num_cut) + ".png";
+        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_)" + std::to_string(i) + ".png";
         num_cut++;
         nowy.write(nazwa.c_str());
 
@@ -782,11 +826,17 @@ void Processor::_cut(int x, int m) {
 
 }
 
-//@TODO
-void Processor::_cut_h(int x, int m) {
-    for (int i=0; i<m; i++){
+/**
+ * @brief creates new images from a part of the image horizontally
+ * @param x - width of the new image
+ *  @param start - place in the data where the function starts
+ * @param end - place in the data where the function ends
+ * @param stop - control variable handling uneven division of the original width
+ */
+void Processor::_cut_h(int x, int start, int end, int stop) {
+    for (int i=start; i<end; i++){
         //skopiuj część obrazka do nowej tablicy
-        int new_width = (i==m-1) ? this->width-i*x : x;
+        int new_width = (i==stop-1) ? this->width-i*x : x;
         Image nowy(new_width, this->height, this->channels);
 
         int j=0;
@@ -797,9 +847,10 @@ void Processor::_cut_h(int x, int m) {
             pomi+=this->width*this->channels;
         }
 
-        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_hor_)" + std::to_string(num_cut) + ".png";
+        std::string nazwa = R"(C:\Users\keste\CLionProjects\ImageProcessor\images\cut_hor_)" + std::to_string(i) + ".png";
         num_cut++;
         nowy.write(nazwa.c_str());
     }
 }
+
 

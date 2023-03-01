@@ -76,6 +76,13 @@ public:
     int get_channels() const{
         return this->channels;
     }
+
+    float get_alpha() const{
+        if (this->channels >= 4 && size >= 4)
+            return (float)data[4]/.255;
+        else return 0;
+    }
+
     size_t get_size() const{
         return this->size;
     }
