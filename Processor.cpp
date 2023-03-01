@@ -439,11 +439,48 @@ Processor& Processor::_distortion(int start, int end, const float change[]) {
 }
 
 
-//@TODO: multithreading
-Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multithreading
+/**
+ * @brief implements multithreading for @_overllay - overlays two images on top of each other.
+ * The resulting image has the same alpha value as @this object
+ * @param image - the image that will be overlaid on top
+ * @param x - the x position of the top left corner of the image
+ * @param y - the y position of the top left corner of the image
+ */
+void Processor::overlay(Processor &image, int x, int y) {
+    {
+        Resdiv re(image.get_height(), THREADS);
+
+        std::vector<std::thread> threads;
+        for (int i = 0; i < THREADS; i++) {
+            threads.emplace_back(
+                    &Processor::_overlay, this, std::ref(image), x, y, i * re.c,
+                    (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
+            );
+
+
+        }
+        for (auto &t: threads) {
+            t.join();
+        }
+
+    }
+}
+
+
+/**
+ * overlays two images on top of each other.
+ * The resulting image has the same alpha value as @this object
+ * @param image - the image that will be overlaid on top
+ * @param x - the x position of the top left corner of the image
+ * @param y - the y position of the top left corner of the image
+ * @param start - the point in data where the function starts
+ * @param end  - the point in data where the function ends
+ * @return this
+ */
+Processor &Processor::_overlay(Processor& image, int x, int y, int start, int end) { // @TODO; multithreading
     uint8_t *source;
     uint8_t *destination;
-    for(int sy = 0; sy<image.get_height(); ++sy){
+    for(int sy = start; sy<end; ++sy){
         if (sy+y <0)
             continue;
         else if (sy + y >= height)
@@ -468,10 +505,10 @@ Processor &Processor::overlay(Processor& image, int x, int y) { // @TODO; multit
                 }
             }
             else{
-                source[0] = (uint8_t)(src_alpha * source[0] + (1 - src_alpha) * destination[0]);
-                source[1] = (uint8_t)(src_alpha * source[1] + (1 - src_alpha) * destination[1]);
-                source[2] = (uint8_t)(src_alpha * source[2] + (1 - src_alpha) * destination[2]);
-                source[3] = dest_alpha*255.f;
+                source[0] = (uint8_t)(src_alpha * (float)source[0] + (1 - src_alpha) * (float)destination[0]);
+                source[1] = (uint8_t)(src_alpha * (float)source[1] + (1 - src_alpha) * (float)destination[1]);
+                source[2] = (uint8_t)(src_alpha * (float)source[2] + (1 - src_alpha) * (float)destination[2]);
+                source[3] = (uint8_t)(dest_alpha*255.f); //@TODO: rozważyć Byte bound
                 memcpy(destination, source, channels);
             }
         }
@@ -495,7 +532,7 @@ Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
             this->crop(0, 0, other.get_width(), this->height);
 
         int new_height = this->height+other.get_height();
-        int new_size = this->size + other.get_size();
+        size_t new_size = this->size + other.get_size();
 
         auto *new_data = new uint8_t [new_size];
         int i =0;
@@ -672,9 +709,9 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
                 srcPx = c.image[sx + sy * c.width];
 
                 if(srcPx != 0) {
-                    float srcAlpha = (srcPx / 255.f) * (a / 255.f);
+                    float srcAlpha = ((float)srcPx / 255.f) * ((float)a / 255.f);
                     std::cout<<srcAlpha;
-                    float dstAlpha = channels < 4 ? 1 : dstPx[3] / 255.f;
+                    float dstAlpha = channels < 4 ? 1 : (float)dstPx[3] / 255.f;
                     std::cout<<"\n"<<dstAlpha;
                     if(srcAlpha > .99 && dstAlpha > .99) {
                         memcpy(dstPx, color, channels);
@@ -761,7 +798,7 @@ void Processor::cut(bool vertical, bool to_parts, int n) {
     std::vector<std::thread> threads;
 
     if(vertical){
-        int x = to_parts? int(this->height/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
+        int x = to_parts? int(this->height/n): n;
         int m = to_parts? n : int(this->height/n)+1;
         Resdiv r(m, THREADS);
 
@@ -782,7 +819,7 @@ void Processor::cut(bool vertical, bool to_parts, int n) {
 
     }
     else{
-        int x = to_parts? int(this->width/n): n; //n jest ilością części czy rozmiarem? t=true - n jest ilością częsci
+        int x = to_parts? int(this->width/n): n;
         int m = to_parts? n : int(this->width/n)+1;
         Resdiv r(m, THREADS);
         for (int i = 0; i < THREADS; i++) {

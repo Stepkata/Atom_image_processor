@@ -31,7 +31,7 @@ public:
     void purple_chromatic_aberration();
     void chromatic_aberration(int n);
     void distortion_filter(float r, float g, float b);
-    Processor& overlay(Processor& image, int x, int y);
+    void overlay(Processor& image, int x, int y);
     Processor& fuse(const std::vector<const char*>& filenames);
     Processor& rotate_right();
     void change_hue(float fHue);
@@ -62,11 +62,12 @@ private:
     Processor& _change_saturation(int start, int end, float change);
     Processor& _change_hue(int start, int end, float matrix[3][3]);
     Processor& _distortion(int start, int end, const float change[]);
+    Processor& _overlay(Processor& image, int x, int y, int start, int end);
     void _cut(int x, int start, int end, int stop);
     void _cut_h(int x, int start, int end, int stop);
     static uint8_t clamp(float v);
-    int num_channels(){
-        return (int)size/channels; //@TODO: może zabraknąć inta
+    size_t num_channels(){
+        return (size_t)size/channels; //@TODO: może zabraknąć inta
     }
     static std::atomic<unsigned> num_cut;
 };
