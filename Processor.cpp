@@ -11,10 +11,11 @@
 
 std::atomic<unsigned> Processor::num_cut = 0;
 
+//@TODO: sprawdzić czy wszystkie funkcje zwracają to co powinny funkcjonalnie zwracać
+//@TODO: exception handling
+
 /**
  * @brief interface function implementing multithreading for @_grayscale_avg() function
- * @param r - the size of one "part" of channels per a thread, including the rest of division
- * @return void
  */
 void Processor::grayscale_avg() {
     if (channels <3){
@@ -41,9 +42,6 @@ void Processor::grayscale_avg() {
 
 /**
  * @brief function that changes a portion of image into grayscale using rgb average
- * @param start place in the data where the function starts
- * @param end place in the data where the function ends
- * @return this
  */
 Processor& Processor::_grayscale_avg(int start, int end){
 
@@ -57,8 +55,6 @@ Processor& Processor::_grayscale_avg(int start, int end){
 
 /**
  * @brief interface function implementing multithreading for @_grayscale_lum() function
- * @param r - the size of one "part" of channels per a thread, including the rest of division
- * @return void
  */
 void Processor::grayscale_lum() {
     if (channels <3){
@@ -86,9 +82,6 @@ void Processor::grayscale_lum() {
 /**
  * @brief function that changes a portion of image into grayscale using weighted rgb average - produces higher quality
  * images than @grayscale_avg()
- * @param start place in the data where the function starts
- * @param end place in the data where the function ends
- * @return this
  */
 Processor& Processor::_grayscale_lum(int start, int end){
     for(int i =start; i<end; i+=channels){
@@ -102,10 +95,7 @@ Processor& Processor::_grayscale_lum(int start, int end){
 
 
 /**
- * @brief applies a color mask over the image - interface function implementing multithreading
- * @param r - value of change in the red color, between 0 and 1
- * @param g - value of change in the green color, between 0 and 1
- * @param b - value of change in the blue color, between 0 and 1
+ * @brief applies a color mask over the image - implements multithreading
  */
 void Processor::color_mask(float r, float g, float b){
     if (channels <3){
@@ -138,10 +128,6 @@ void Processor::color_mask(float r, float g, float b){
 
 /**
  * @brief applies changes to colors of a part of the image creating a color mask
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @param change - array containing values of changes in the rgb
- * @return this
  */
 Processor& Processor::_color_mask(int start, int end, const float change[]) {
     for (int i=start; i<end; i+=channels){
@@ -154,10 +140,10 @@ Processor& Processor::_color_mask(int start, int end, const float change[]) {
 }
 
 
-//@TODO: usunąć zduplikowany kod
+// @TODO: usunąć zduplikowany kod
 
 /**
- * @brief interface function that implements multithreading for @_flip_x()
+ * @brief implements multithreading for @_flip_x()
  */
 void Processor::flip_x() {
     Resdiv re(this->height, THREADS);
@@ -178,9 +164,6 @@ void Processor::flip_x() {
 
 /**
  * @brief function that flips parts of the image vertically
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @return
  */
 Processor& Processor::_flip_x(int start, int end) {
     uint8_t pom[this->channels];
@@ -200,7 +183,7 @@ Processor& Processor::_flip_x(int start, int end) {
 }
 
 /**
- * @brief interface function that implements multithreading for @_flip_y()
+ * @brief implements multithreading for @_flip_y()
  */
 void Processor::flip_y() {
     Resdiv re(width, THREADS);
@@ -221,9 +204,6 @@ void Processor::flip_y() {
 
 /**
  * @brief function that flips parts of the image horisontally
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @return this
  */
 Processor& Processor::_flip_y(int start, int end) { //odbicie względem osi y
     uint8_t *ptr1, *ptr2;
@@ -241,11 +221,8 @@ Processor& Processor::_flip_y(int start, int end) { //odbicie względem osi y
     return *this;
 }
 
-
-
 /**
  * @brief funtion that aplies multithreading to @_neon_ca() that adds a filter altering
- * colors and adding a variation of chromatic aberration
  * @note it looks cool
  */
 void Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale też zmienia kolory, w każdym razie wygląda fajnie
@@ -267,9 +244,6 @@ void Processor::neon_chromatic_aberration() { //dodaje chromatic abberration ale
 
 /**
  * @brief adds a filter altering colors and adding a variation of chromatic aberration
- * @param start - the point in data where the function starts
- * @param end - the point in data where the function ends
- * @return this
  */
 Processor& Processor::_neon_ca(int start, int end){
     for (int y=start; y<end; ++y){
@@ -303,9 +277,6 @@ void Processor::purple_chromatic_aberration() {
 
 /**
  * @brief adds a variation of chromatic aberration
- * @param start - the point in data where the function starts
- * @param end - the point in data where the function ends
- * @return this
  */
 Processor& Processor::_pca(int start, int end){
     for (int y=start; y<end; ++y){
@@ -316,37 +287,46 @@ Processor& Processor::_pca(int start, int end){
     return *this;
 }
 
-/*
- * function that crops the image by performing copy operation
- * @TODO multithreading
+/**
+ * @brief implements multithreading to @_crop() - crops image to selected part
  */
-Processor &Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch){
-    auto *cropped_data = new uint8_t [cw*ch*this->channels];
-    memset(cropped_data, 0, cw*ch*this->channels);
+void Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch) {
+    Processor nowy(cw, ch, this->channels);
 
-    for (uint16_t y=0; y< ch; ++y){
+    Resdiv re(ch, THREADS);
+
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_crop, this, std::ref(nowy), cx, cy, cw, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
+        );
+
+    }
+    for (auto &t: threads) {
+        t.join();
+    }
+    this->copy(nowy);
+
+}
+
+/**
+ * @brief copies part of the "selection" to temporary object
+ */
+void Processor::_crop(Processor& other, uint16_t cx, uint16_t cy, uint16_t cw, int start, int end){
+    for (uint16_t y=start; y<end; ++y){
         if(y+cy >= height)
             break;
         for(uint16_t x=0; x<cw; ++x){
             if (x+cx >= width)
                 break;
-            memcpy(&cropped_data[(x+y*cw)*channels], &data[((x + cx) + (y+cy)*this->width)*channels], channels);
+            uint8_t *cropped_data = &other.get_data()[(x+y*cw)*channels];
+            memcpy(cropped_data, &data[((x + cx) + (y+cy)*this->width)*channels], channels);
         }
     }
-
-    this->width = cw;
-    this->height = ch;
-    set_size();
-    this->free();
-    this->data = cropped_data;
-    cropped_data = nullptr;
-
-    return *this;
 }
-
 /**
  * @brief implements multithreading for @_chromatic_aberration function
- * @param n the offset of chromatic aberration
  */
 void Processor::chromatic_aberration(int n) {
     if (channels <3){
@@ -373,10 +353,6 @@ void Processor::chromatic_aberration(int n) {
 
 /**
  * @braief function applying chromatic aberration in part of the image
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @param n - offset
- * @return this
  */
 Processor& Processor::_chromatic_aberration(int start, int end, int n){
     for (int i=start; i<end; i+=channels) {
@@ -388,9 +364,6 @@ Processor& Processor::_chromatic_aberration(int start, int end, int n){
 
 /**
  * @brief implements multithreading for @_distortion() - filter that creates corrupted file effect
- * @param r - change in r value
- * @param g - change in r value
- * @param b - change in r value
  */
 void Processor::distortion_filter(float r, float g, float b) {
     if (channels <3){
@@ -423,10 +396,6 @@ void Processor::distortion_filter(float r, float g, float b) {
 
 /**
  * @brief filter that creates corrupted file effect on part of an image
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @param change - array containing values of changes in the rgb
- * @return this
  */
 Processor& Processor::_distortion(int start, int end, const float change[]) {
     for (int i=start; i<end; i+=channels){
@@ -442,40 +411,28 @@ Processor& Processor::_distortion(int start, int end, const float change[]) {
 /**
  * @brief implements multithreading for @_overllay - overlays two images on top of each other.
  * The resulting image has the same alpha value as @this object
- * @param image - the image that will be overlaid on top
- * @param x - the x position of the top left corner of the image
- * @param y - the y position of the top left corner of the image
  */
 void Processor::overlay(Processor &image, int x, int y) {
-    {
-        Resdiv re(image.get_height(), THREADS);
+    Resdiv re(image.get_height(), THREADS);
 
-        std::vector<std::thread> threads;
-        for (int i = 0; i < THREADS; i++) {
-            threads.emplace_back(
-                    &Processor::_overlay, this, std::ref(image), x, y, i * re.c,
-                    (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
-            );
-
-
-        }
-        for (auto &t: threads) {
-            t.join();
-        }
+    std::vector<std::thread> threads;
+    for (int i = 0; i < THREADS; i++) {
+        threads.emplace_back(
+                &Processor::_overlay, this, std::ref(image), x, y, i * re.c,
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
+                );
 
     }
+    for (auto &t: threads) {
+            t.join();
+    }
+
 }
 
 
 /**
  * overlays two images on top of each other.
  * The resulting image has the same alpha value as @this object
- * @param image - the image that will be overlaid on top
- * @param x - the x position of the top left corner of the image
- * @param y - the y position of the top left corner of the image
- * @param start - the point in data where the function starts
- * @param end  - the point in data where the function ends
- * @return this
  */
 Processor &Processor::_overlay(Processor& image, int x, int y, int start, int end) { // @TODO; multithreading
     uint8_t *source;
@@ -594,10 +551,6 @@ Processor &Processor::rotate_right() {
 
 /**
  * @brief function that resizes the image using stbir library function
- * @note alpha channel might cause issues
- * @TODO: zrobić wersję z alphą
- * @param new_w
- * @param new_h
  */
 void Processor::resize(int new_w, int new_h) {
     auto *new_data = new uint8_t [new_w*new_h*this->channels];
@@ -615,8 +568,6 @@ void Processor::resize(int new_w, int new_h) {
 
 /**
  * clamps the value to fit into [0, 255]
- * @param v - value to be clamped
- * @return
  */
 uint8_t Processor::clamp(float v) {
     if (v < 0)
@@ -630,7 +581,6 @@ uint8_t Processor::clamp(float v) {
 /**
  * @brief calculates convolution matrix based on fHue value and implements multithreading for @_change_hue() that
  * handles hue shift
- * @param fHue - value of the hue shift, any value possible - treated like trigonometric degrees
  */
 void Processor::change_hue(float fHue) {
     float cosA = cos(fHue*3.14159265f/180); //convert degrees to radians
@@ -661,10 +611,6 @@ void Processor::change_hue(float fHue) {
 
 /**
  * @brief uses the convolution matrix to calculate hue shift for the rgb values
- * @param start place in the data where the function starts
- * @param end place in the data where the function ends
- * @param matrix matrix used to calculate shift
- * @return this
  */
 Processor& Processor::_change_hue(int start, int end, float matrix[3][3]) {
     for (int i = start; i < end; i += channels) {
@@ -740,7 +686,6 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
 
 /**
  * @brief implements multithreading for @_change_saturation() function, changes saturation of colors in the image
- * @param change - the amount of shift in the saturation, must be between 0 and 1
  */
 void Processor::change_saturation(float change) {
     change = change > 1 ? 1 : change;
@@ -764,10 +709,6 @@ void Processor::change_saturation(float change) {
 
 /**
  * @brief changes saturation of a part of the image using convolution matrix
- * @param start place in the data where the function starts
- * @param end place in the data where the function ends
- * @param change the amount of shift in the saturation
- * @return
  */
 Processor &Processor::_change_saturation(int start, int end, float change) {
     for(int i=start; i<end; i+=channels){
@@ -784,15 +725,7 @@ Processor &Processor::_change_saturation(int start, int end, float change) {
 }
 
 /**
- * @brief implementing multithreading, cuts an image into separate images:
- * 1. vertically, to a number of specified parts (vertical = true, to_parts = true, n= number of parts)
- * 2. vertically, to specified size of a part (vertical = true, to_parts = false, n=height of a new part)
- * 3. horizontally, to a number of specified parts (vertical = false, to_parts = true, n= number of parts)
- * 4. horizontally, to specified size of a part (vertical = false, to_parts = false, n=weight of a new part)
- * saves the new images automatically
- * @param vertical - bool, is the image supposed to be cut vertially
- * @param to_parts - bool, is the iage supposed to be cut into a number or sized parts
- * @param n - number or size of parts
+ * @brief implementing multithreading, cuts an image into separate images
  */
 void Processor::cut(bool vertical, bool to_parts, int n) {
     std::vector<std::thread> threads;
@@ -841,10 +774,6 @@ void Processor::cut(bool vertical, bool to_parts, int n) {
 
 /**
  * @brief creates new images from a part of the image vertically
- * @param x - height of the new image
- *  @param start - place in the data where the function starts
- * @param end - place in the data where the function ends
- * @param stop - control variable handling uneven division of the original height
  */
 void Processor::_cut(int x, int start, int end, int stop) {
 
@@ -865,10 +794,6 @@ void Processor::_cut(int x, int start, int end, int stop) {
 
 /**
  * @brief creates new images from a part of the image horizontally
- * @param x - width of the new image
- *  @param start - place in the data where the function starts
- * @param end - place in the data where the function ends
- * @param stop - control variable handling uneven division of the original width
  */
 void Processor::_cut_h(int x, int start, int end, int stop) {
     for (int i=start; i<end; i++){

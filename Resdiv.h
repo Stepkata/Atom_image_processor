@@ -1,6 +1,8 @@
 #ifndef IMAGEPROCESSOR_RESDIV_H
 #define IMAGEPROCESSOR_RESDIV_H
 
+#include <cstdio>
+
 /**
  * @brief Class that creates a number that consists of the results of division with rest
  * @param c the integer part of division
@@ -8,15 +10,13 @@
  */
 class Resdiv {
 public:
-    int c;
-    int r;
-    Resdiv(int a, int b){
-        this->b = b;
+    size_t c;
+    size_t r;
+    Resdiv(size_t a, size_t b){
         c = (int)a/b;
         r = a-c*b;
     }
-private:
-    int b;
+
 };
 
 
