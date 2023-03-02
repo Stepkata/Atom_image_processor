@@ -7,8 +7,6 @@
 
 #include <iostream>
 
-#define BYTE_BOUND(value) value < 0? 0: (value<255? 255:value)
-
 std::atomic<unsigned> Processor::num_cut = 0;
 
 //@TODO: sprawdzić czy wszystkie funkcje zwracają to co powinny funkcjonalnie zwracać
@@ -462,10 +460,10 @@ Processor &Processor::_overlay(Processor& image, int x, int y, int start, int en
                 }
             }
             else{
-                source[0] = (uint8_t)(src_alpha * (float)source[0] + (1 - src_alpha) * (float)destination[0]);
-                source[1] = (uint8_t)(src_alpha * (float)source[1] + (1 - src_alpha) * (float)destination[1]);
-                source[2] = (uint8_t)(src_alpha * (float)source[2] + (1 - src_alpha) * (float)destination[2]);
-                source[3] = (uint8_t)(dest_alpha*255.f); //@TODO: rozważyć Byte bound
+                source[0] = clamp(src_alpha * (float)source[0] + (1 - src_alpha) * (float)destination[0]);
+                source[1] = clamp(src_alpha * (float)source[1] + (1 - src_alpha) * (float)destination[1]);
+                source[2] = clamp(src_alpha * (float)source[2] + (1 - src_alpha) * (float)destination[2]);
+                source[3] = clamp(dest_alpha*255.f); //@TODO: rozważyć Byte bound
                 memcpy(destination, source, channels);
             }
         }
@@ -621,7 +619,7 @@ Processor& Processor::_change_hue(int start, int end, float matrix[3][3]) {
     return *this;
 }
 
-//@TODO multithreading + kolor nie działa???
+//@TODO multithreading
 Processor& Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
     size_t len = strlen(txt);
     SFT_Char c{};
@@ -655,23 +653,22 @@ Processor& Processor::overlayText(const char *txt, const Font &font, int x, int 
                 srcPx = c.image[sx + sy * c.width];
 
                 if(srcPx != 0) {
-                    float srcAlpha = ((float)srcPx / 255.f) * ((float)a / 255.f);
-                    std::cout<<srcAlpha;
+                    float srcAlpha = (float)a/100;
                     float dstAlpha = channels < 4 ? 1 : (float)dstPx[3] / 255.f;
-                    std::cout<<"\n"<<dstAlpha;
+
                     if(srcAlpha > .99 && dstAlpha > .99) {
                         memcpy(dstPx, color, channels);
                     }
                     else {
-                        float outAlpha = srcAlpha + dstAlpha * (1 - srcAlpha);
+                        float outAlpha = (srcAlpha + dstAlpha * (1 - srcAlpha))<1?(srcAlpha + dstAlpha * (1 - srcAlpha)):1;
                         if(outAlpha < .01) {
                             memset(dstPx, 0, channels);
                         }
                         else {
                             for(int chnl = 0;chnl < channels;++chnl) {
-                                dstPx[chnl] = (uint8_t)BYTE_BOUND((color[chnl]/255.f * srcAlpha + dstPx[chnl]/255.f * dstAlpha * (1 - srcAlpha)) / outAlpha * 255.f);
+                                dstPx[chnl] = clamp((color[chnl]/255.f * srcAlpha + dstPx[chnl]/255.f * dstAlpha * (1 - srcAlpha)) / outAlpha * 255.f);
                             }
-                            if(channels > 3) {dstPx[3] = (uint8_t)BYTE_BOUND(outAlpha * 255.f);}
+                            if(channels > 3) {dstPx[3] = clamp(outAlpha * 255.f);}
                         }
                     }
                 }
