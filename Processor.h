@@ -117,12 +117,17 @@ public:
      */
     void overlay(Processor& image, int x, int y);
 
-    //@TODO
+    /**
+     * @brief fuses multiple images together (adjusts height and width to the smallest ones)
+     * @TODO: multithreading
+     * @param filenames - list of images to fuse together
+     * @return this
+     */
     Processor& fuse(const std::vector<const char*>& filenames);
 
     /**
      * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
-     * @TODO multithreading
+     * @TODO multithreading + lepszy sposób
      * @return this
      */
     Processor& rotate_right();
@@ -143,8 +148,18 @@ public:
      */
     void change_hue(float fHue);
 
-    //@TODO
-    Processor& overlayText(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
+    /**
+     * @brief implements multithreading for @_overlayText() - inserts text into image
+     * @param txt - the text that will be pasted
+     * @param font - chosen font of the text
+     * @param x - x position of the top right corner of the text
+     * @param y - y position of the top right corner of the text
+     * @param r - r value of the color of the text
+     * @param g - g value of the color of the text
+     * @param b - b value of the color of the text
+     * @param a - alpha value of the text
+     */
+    void overlayText(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
                            uint8_t b = 0, uint8_t a = 100);
 
     /**
@@ -192,6 +207,7 @@ private:
      * @return this
      */
     Processor& _grayscale_avg(int start, int end);
+
     /**
      * @brief function that changes a portion of image into grayscale using weighted rgb average - produces higher quality
      * images than @grayscale_avg()
@@ -200,6 +216,7 @@ private:
      * @return this
      */
     Processor& _grayscale_lum(int start, int end);
+
     /**
      * @brief applies changes to colors of a part of the image creating a color mask
      * @param start - the point in data where the function starts
@@ -208,6 +225,7 @@ private:
      * @return this
      */
     Processor& _color_mask(int start, int end, const float change[]);
+
     /**
     * @brief function that flips parts of the image vertically
     * @param start - the point in data where the function starts
@@ -215,6 +233,7 @@ private:
     * @return
     */
     Processor& _flip_x(int start, int end);
+
     /**
      * @brief function that flips parts of the image horisontally
      * @param start - the point in data where the function starts
@@ -222,6 +241,7 @@ private:
      * @return this
      */
     Processor& _flip_y(int start, int end);
+
     /**
      * @brief adds a filter altering colors and adding a variation of chromatic aberration
      * @param start - the point in data where the function starts
@@ -229,6 +249,7 @@ private:
      * @return this
      */
     Processor& _neon_ca(int start, int end);
+
     /**
      * @brief adds a variation of chromatic aberration
      * @param start - the point in data where the function starts
@@ -256,6 +277,7 @@ private:
      * @return this
      */
     Processor& _chromatic_aberration(int start, int end, int n);
+
     /**
      * @brief filter that creates corrupted file effect on part of an image
      * @param start - the point in data where the function starts
@@ -264,6 +286,7 @@ private:
      * @return this
      */
     Processor& _distortion(int start, int end, const float change[]);
+
     /**
      * overlays two images on top of each other.
      * The resulting image has the same alpha value as @this object
@@ -275,12 +298,14 @@ private:
      * @return this
      */
     Processor& _overlay(Processor& image, int x, int y, int start, int end);
+
     /**
      * clamps the value to fit into [0, 255]
      * @param v - value to be clamped
      * @return
      */
     static uint8_t clamp(float v);
+
     /**
      * @brief uses the convolution matrix to calculate hue shift for the rgb values
      * @param start place in the data where the function starts
@@ -289,6 +314,20 @@ private:
      * @return this
      */
     Processor& _change_hue(int start, int end, float matrix[3][3]);
+
+    /**
+     * @brief inserts a part of text into image
+     * @param txt - the full text
+     * @param font - the font of the text
+     * @param color - color of the text (includes alpha)
+     * @param x - the x position of the top left corner of the text
+     * @param y - the y position of the top left corner of the text
+     * @param  start place in the data where the function starts
+     * @param end place in the data where the function ends
+     * @return this
+     */
+    Processor& _overlayText(const char* txt, const Font& font, int* color, int x, int y, int start, int end);
+
     /**
      * @brief changes saturation of a part of the image using convolution matrix
      * @param start place in the data where the function starts

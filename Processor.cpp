@@ -1,6 +1,5 @@
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 
-
 #include "Processor.h"
 #include "stb_image_resize.h"
 #include "Resdiv.h"
@@ -36,7 +35,6 @@ void Processor::grayscale_avg() {
         }
     }
 }
-
 
 /**
  * @brief function that changes a portion of image into grayscale using rgb average
@@ -76,7 +74,6 @@ void Processor::grayscale_lum() {
     }
 }
 
-
 /**
  * @brief function that changes a portion of image into grayscale using weighted rgb average - produces higher quality
  * images than @grayscale_avg()
@@ -90,7 +87,6 @@ Processor& Processor::_grayscale_lum(int start, int end){
     return *this;
 
 }
-
 
 /**
  * @brief applies a color mask over the image - implements multithreading
@@ -122,7 +118,6 @@ void Processor::color_mask(float r, float g, float b){
     }
 
 }
-
 
 /**
  * @brief applies changes to colors of a part of the image creating a color mask
@@ -190,7 +185,7 @@ void Processor::flip_y() {
     for (int i = 0; i < THREADS; i++) {
         threads.emplace_back(
                 &Processor::_flip_y, this, i * re.c,
-                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
         );
 
     }
@@ -312,7 +307,7 @@ void Processor::crop(uint16_t cx, uint16_t cy, uint16_t cw, uint16_t ch) {
  * @brief copies part of the "selection" to temporary object
  */
 void Processor::_crop(Processor& other, uint16_t cx, uint16_t cy, uint16_t cw, int start, int end){
-    for (uint16_t y=start; y<end; ++y){
+    for (int y=start; y<end; ++y){
         if(y+cy >= height)
             break;
         for(uint16_t x=0; x<cw; ++x){
@@ -391,7 +386,6 @@ void Processor::distortion_filter(float r, float g, float b) {
 
 }
 
-
 /**
  * @brief filter that creates corrupted file effect on part of an image
  */
@@ -404,7 +398,6 @@ Processor& Processor::_distortion(int start, int end, const float change[]) {
         }
     return *this;
 }
-
 
 /**
  * @brief implements multithreading for @_overllay - overlays two images on top of each other.
@@ -426,7 +419,6 @@ void Processor::overlay(Processor &image, int x, int y) {
     }
 
 }
-
 
 /**
  * overlays two images on top of each other.
@@ -471,10 +463,8 @@ Processor &Processor::_overlay(Processor& image, int x, int y, int start, int en
     return *this;
 }
 
-
-/*
+/**
  * @brief += operator overload
- * @TODO
  */
 Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     if (this!= &other){
@@ -506,9 +496,8 @@ Processor& Processor::operator+=(Processor& other){ //@TODO: multithreading
     return *this;
 }
 
-/*
+/**
  * @brief function that creates a fusion out of a vector of images using addition of Processor objects
- * @TODO
  */
 Processor &Processor::fuse(const std::vector<const char*>& filenames) {
     for (auto name : filenames){
@@ -520,34 +509,30 @@ Processor &Processor::fuse(const std::vector<const char*>& filenames) {
 
 /**
  * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
- * //@TODO: multithreading
  */
 Processor &Processor::rotate_right() {
     auto *new_data = new uint8_t [this->size];
     int new_height = this->width;
     int new_width = this->height;
 
-    int w=this->width, ch = this->channels, pom = 0, index = 0, pom2=0;
+    int  pom = 0, index = 0;
 
-    for(int i=0; i<w; i++, pom2+=ch){
-        pom = pom2;
+    for(int i=0; i<this->width; i++){
+        pom = i*this->channels;
         for(int j=0; j<this->height; j++, pom += this->width*this->channels)
             for(int n=0; n<this->channels; n++, index++){
                 new_data[index] = data[pom + n];
             }
     }
 
-
     free();
     this->data = new_data;
     new_data = nullptr;
     this->height = new_height;
     this->width = new_width;
-    //this->flip_x();
+    this->flip_x();
     return *this;
 }
-
-
 
 /**
  * @brief function that resizes the image using stbir library function
@@ -565,7 +550,6 @@ void Processor::resize(int new_w, int new_h) {
     this->height = new_h;
 }
 
-
 /**
  * clamps the value to fit into [0, 255]
  */
@@ -576,7 +560,6 @@ uint8_t Processor::clamp(float v) {
         return 255;
     return (uint8_t)v;
 }
-
 
 /**
  * @brief calculates convolution matrix based on fHue value and implements multithreading for @_change_hue() that
@@ -608,7 +591,6 @@ void Processor::change_hue(float fHue) {
 
 }
 
-
 /**
  * @brief uses the convolution matrix to calculate hue shift for the rgb values
  */
@@ -621,71 +603,92 @@ Processor& Processor::_change_hue(int start, int end, float matrix[3][3]) {
     return *this;
 }
 
-//@TODO multithreading
-Processor& Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
-    size_t len = strlen(txt);
-    SFT_Char c{};
-    int32_t dx, dy;
-    uint8_t* dstPx;
-    uint8_t srcPx;
-    int color[4] = {r, g, b, a};
+/**
+ * @brief implements multithreading for @_overlayText() - inserts text into image
+ */
+void Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+   size_t len = strlen(txt);
+   int color[4] = {r, g, b, a};
+   Resdiv re(len, THREADS);
 
-    for(size_t i = 0;i < len;++i) {
-        if(sft_char(&font.sft, txt[i], &c) != 0) {
-            throw MyException("Font is missing this character!");
-        }
+   std::vector<std::thread> threads;
+   for (int i = 0; i < THREADS; i++) {
+       threads.emplace_back(
+               &Processor::_overlayText, this, txt, std::ref(font), color, x, y, i * re.c,
+               (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
+       );
 
-        for(int sy = 0;sy < c.height;++sy) {
-            dy = sy + y + c.y;
-            if(dy < 0) {
-                continue;
-            }
-            else if(dy >= height) {
-                break;
-            }
-            for(int sx = 0;sx < c.width;++sx) {
-                dx = sx + x + c.x;
-                if(dx < 0) {
-                    continue;
-                }
-                else if(dx >= width) {
-                    break;
-                }
-                dstPx = &data[(dx + dy * width) * channels];
-                srcPx = c.image[sx + sy * c.width];
+   }
+   for (auto &t: threads) {
+       t.join();
+   }
 
-                if(srcPx != 0) {
-                    float srcAlpha = (float)a/100;
-                    float dstAlpha = channels < 4 ? 1 : (float)dstPx[3] / 255.f;
-
-                    if(srcAlpha > .99 && dstAlpha > .99) {
-                        memcpy(dstPx, color, channels);
-                    }
-                    else {
-                        float outAlpha = (srcAlpha + dstAlpha * (1 - srcAlpha))<1?(srcAlpha + dstAlpha * (1 - srcAlpha)):1;
-                        if(outAlpha < .01) {
-                            memset(dstPx, 0, channels);
-                        }
-                        else {
-                            for(int chnl = 0;chnl < channels;++chnl) {
-                                dstPx[chnl] = clamp((color[chnl]/255.f * srcAlpha + dstPx[chnl]/255.f * dstAlpha * (1 - srcAlpha)) / outAlpha * 255.f);
-                            }
-                            if(channels > 3) {dstPx[3] = clamp(outAlpha * 255.f);}
-                        }
-                    }
-                }
-            }
-        }
-
-        x += c.advance;
-        delete c.image;
-    }
-    return *this;
 }
 
 /**
- * @brief implements multithreading for @_change_saturation() function, changes saturation of colors in the image
+ * @brief inserts a part of text into image
  */
+Processor& Processor::_overlayText(const char* txt, const Font& font, int *color, int x, int y, int start, int end){
+   uint8_t* dstPx;
+   uint8_t srcPx;
+   int32_t dx, dy;
+   SFT_Char c{};
+   for(int j = start;j< end;++j) {
+       if(sft_char(&font.sft, txt[j], &c) != 0) {
+           throw MyException("Font is missing this character!");
+       }
+       x+=j*(int)c.advance;
+       for(int sy = 0;sy < c.height;++sy) {
+           dy = sy + y + c.y;
+           if(dy < 0) {
+               continue;
+           }
+           else if(dy >= height) {
+               break;
+           }
+           for(int sx = 0;sx < c.width;++sx) {
+               dx = sx + x + c.x;
+               if(dx < 0) {
+                   continue;
+               }
+               else if(dx >= width) {
+                   break;
+               }
+               dstPx = &data[(dx + dy * width) * channels];
+               srcPx = c.image[sx + sy * c.width];
+
+               if(srcPx != 0) {
+                   float srcAlpha = (float)color[3]/100;
+                   float dstAlpha = channels < 4 ? 1 : (float)dstPx[3] / 255.f;
+
+                   if(srcAlpha > .99 && dstAlpha > .99) {
+                       memcpy(dstPx, color, channels);
+                   }
+                   else {
+                       float outAlpha = (srcAlpha + dstAlpha * (1 - srcAlpha))<1?(srcAlpha + dstAlpha * (1 - srcAlpha)):1;
+                       if(outAlpha < .01) {
+                           memset(dstPx, 0, channels);
+                       }
+                       else {
+                           for(int chnl = 0;chnl < channels;++chnl) {
+                               dstPx[chnl] = clamp(((float)color[chnl]/255.f * srcAlpha + (float)dstPx[chnl]/255.f * dstAlpha * (1 - srcAlpha)) / outAlpha * 255.f);
+                           }
+                           if(channels > 3) {dstPx[3] = clamp(outAlpha * 255.f);}
+                       }
+                   }
+               }
+           }
+       }
+
+       delete c.image;
+   }
+
+   return *this;
+}
+
+/**
+* @brief implements multithreading for @_change_saturation() function, changes saturation of colors in the image
+*/
 void Processor::change_saturation(float change) {
     change = change > 1 ? 1 : change;
     change = change < 0 ? 0 : change; //make sure change is a legal amount

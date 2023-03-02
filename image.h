@@ -54,7 +54,6 @@ public:
         data[x] = c;
     }
 
-
     void set_width(int w){
         this->width = w;
     }
