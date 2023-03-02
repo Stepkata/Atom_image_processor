@@ -119,7 +119,12 @@ public:
 
     //@TODO
     Processor& fuse(const std::vector<const char*>& filenames);
-    //@TODO
+
+    /**
+     * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
+     * @TODO multithreading
+     * @return this
+     */
     Processor& rotate_right();
 
     /**

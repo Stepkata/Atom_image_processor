@@ -150,7 +150,7 @@ void Processor::flip_x() {
     for (int i = 0; i < THREADS; i++) {
         threads.emplace_back(
                 &Processor::_flip_x, this, i * re.c,
-                (i + 1) * re.c + (i == THREADS - 1 ? re.r * channels : 0)
+                (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
         );
 
     }
@@ -518,7 +518,7 @@ Processor &Processor::fuse(const std::vector<const char*>& filenames) {
     return *this;
 }
 
-/*
+/**
  * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
  * //@TODO: multithreading
  */
@@ -543,7 +543,7 @@ Processor &Processor::rotate_right() {
     new_data = nullptr;
     this->height = new_height;
     this->width = new_width;
-    flip_x();
+    //this->flip_x();
     return *this;
 }
 
