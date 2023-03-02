@@ -536,6 +536,8 @@ Processor &Processor::rotate_right() {
                 new_data[index] = data[pom + n];
             }
     }
+
+
     free();
     this->data = new_data;
     new_data = nullptr;
