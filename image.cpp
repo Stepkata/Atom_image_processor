@@ -17,7 +17,7 @@ Image::Image(const char* filename){
     if(this->read(filename)){
         printf("Read the %s file succesfully!\n", filename);
         set_size();
-        this->filename = filename;
+        this->_filename = filename;
     }
     else
         throw MyException("Reading failure! \n");
@@ -37,7 +37,7 @@ bool Image::read(const char* filename){
 }
 
 bool Image::write(){
-    return _write(this->filename);
+    return _write(this->_filename);
 }
 
 bool Image::write(const char *filename) {
@@ -69,7 +69,7 @@ void Image::copy(const Image &other){
     this->width = other.get_width();
     this->height = other.get_height();
     this->channels = other.get_channels();
-    this->filename = other.get_filename();
+    this->_filename = other.get_filename();
     set_size();
     this->data = new uint8_t [size];
     memcpy(this->data, other.data, this->size);

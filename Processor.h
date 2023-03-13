@@ -127,6 +127,8 @@ public:
 
     /**
      * @brief function that rotates the image 90 degrees right using matrix manipulation and copy operation
+     * @note: the transposition used creates a mirrored result of rotated image - flipX needs to be invoked
+     * Recommended optimalisation
      * @TODO multithreading + lepszy sposób
      * @return this
      */
@@ -134,8 +136,7 @@ public:
 
     /**
      * @brief function that resizes the image using stbir library function
-     * @note alpha channel might cause issues
-     * @TODO: zrobić wersję z alphą
+     * @note supposedly alpha channel might cause issues, however there were no issues during testing
      * @param new_w
      * @param new_h
      */
@@ -159,7 +160,7 @@ public:
      * @param b - b value of the color of the text
      * @param a - alpha value of the text
      */
-    void overlayText(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
+    void overlay_text(const char* txt, const Font& font, int x, int y, uint8_t r = 0, uint8_t g = 0,
                            uint8_t b = 0, uint8_t a = 100);
 
     /**
@@ -326,7 +327,7 @@ private:
      * @param end place in the data where the function ends
      * @return this
      */
-    Processor& _overlayText(const char* txt, const Font& font, int* color, int x, int y, int start, int end);
+    Processor& _overlay_text(const char* txt, const Font& font, int* color, int x, int y, int start, int end);
 
     /**
      * @brief changes saturation of a part of the image using convolution matrix

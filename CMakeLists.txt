@@ -17,4 +17,4 @@ add_executable(
         schrift.h
         Font.cpp
         Font.h
-        Resdiv.cpp Resdiv.h)
+        Resdiv.h)

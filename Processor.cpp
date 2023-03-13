@@ -8,8 +8,7 @@
 
 std::atomic<unsigned> Processor::num_cut = 0;
 
-//@TODO: sprawdzić czy wszystkie funkcje zwracają to co powinny funkcjonalnie zwracać
-//@TODO: exception handling
+//@TODO: better exception handling
 
 /**
  * @brief interface function implementing multithreading for @_grayscale_avg() function
@@ -443,6 +442,7 @@ Processor &Processor::_overlay(Processor& image, int x, int y, int start, int en
             float src_alpha = image.get_channels() < 4 ? 1: (float)source[3]/255.f;
             float dest_alpha = this->channels < 4 ? 1: (float)destination[3]/255.f;
 
+            //The code below is absolutely reachable and works properly, CLion is just having a stroke sometimes
             if(src_alpha ==1){ //source with alpha = 1 or grayscale
                 if(image.get_channels() >= this->channels)
                     memcpy(destination, source, channels);
@@ -455,7 +455,7 @@ Processor &Processor::_overlay(Processor& image, int x, int y, int start, int en
                 source[0] = clamp(src_alpha * (float)source[0] + (1 - src_alpha) * (float)destination[0]);
                 source[1] = clamp(src_alpha * (float)source[1] + (1 - src_alpha) * (float)destination[1]);
                 source[2] = clamp(src_alpha * (float)source[2] + (1 - src_alpha) * (float)destination[2]);
-                source[3] = clamp(dest_alpha*255.f); //@TODO: rozważyć Byte bound
+                source[3] = clamp(dest_alpha*255.f);
                 memcpy(destination, source, channels);
             }
         }
@@ -515,10 +515,10 @@ Processor &Processor::rotate_right() {
     int new_height = this->width;
     int new_width = this->height;
 
-    int  pom = 0, index = 0;
+    int index = 0;
 
     for(int i=0; i<this->width; i++){
-        pom = i*this->channels;
+        int pom = i*this->channels;
         for(int j=0; j<this->height; j++, pom += this->width*this->channels)
             for(int n=0; n<this->channels; n++, index++){
                 new_data[index] = data[pom + n];
@@ -604,9 +604,9 @@ Processor& Processor::_change_hue(int start, int end, float matrix[3][3]) {
 }
 
 /**
- * @brief implements multithreading for @_overlayText() - inserts text into image
+ * @brief implements multithreading for @_overlay_text() - inserts text into image
  */
-void Processor::overlayText(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
+void Processor::overlay_text(const char *txt, const Font &font, int x, int y, uint8_t r, uint8_t g, uint8_t b, uint8_t a) {
    size_t len = strlen(txt);
    int color[4] = {r, g, b, a};
    Resdiv re(len, THREADS);
@@ -614,7 +614,7 @@ void Processor::overlayText(const char *txt, const Font &font, int x, int y, uin
    std::vector<std::thread> threads;
    for (int i = 0; i < THREADS; i++) {
        threads.emplace_back(
-               &Processor::_overlayText, this, txt, std::ref(font), color, x, y, i * re.c,
+               &Processor::_overlay_text, this, txt, std::ref(font), color, x, y, i * re.c,
                (i + 1) * re.c + (i == THREADS - 1 ? re.r : 0)
        );
 
@@ -628,7 +628,7 @@ void Processor::overlayText(const char *txt, const Font &font, int x, int y, uin
 /**
  * @brief inserts a part of text into image
  */
-Processor& Processor::_overlayText(const char* txt, const Font& font, int *color, int x, int y, int start, int end){
+Processor& Processor::_overlay_text(const char* txt, const Font& font, int *color, int x, int y, int start, int end){
    uint8_t* dstPx;
    uint8_t srcPx;
    int32_t dx, dy;

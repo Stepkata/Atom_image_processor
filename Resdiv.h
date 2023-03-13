@@ -8,15 +8,13 @@
  * @param c the integer part of division
  * @param r the rest of division
  */
-class Resdiv {
-public:
+struct Resdiv {
     size_t c;
     size_t r;
     Resdiv(size_t a, size_t b){
         c = (int)a/b;
         r = a-c*b;
     }
-
 };
 
 
