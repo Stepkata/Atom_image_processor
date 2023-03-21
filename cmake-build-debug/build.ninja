@@ -79,12 +79,6 @@ build CMakeFiles/ImageProcessor.dir/Font.cpp.obj: CXX_COMPILER__ImageProcessor_D
   OBJECT_DIR = CMakeFiles\ImageProcessor.dir
   OBJECT_FILE_DIR = CMakeFiles\ImageProcessor.dir
 
-build CMakeFiles/ImageProcessor.dir/Resdiv.cpp.obj: CXX_COMPILER__ImageProcessor_Debug C$:/Users/keste/CLionProjects/ImageProcessor/Resdiv.cpp || cmake_object_order_depends_target_ImageProcessor
-  DEP_FILE = CMakeFiles\ImageProcessor.dir\Resdiv.cpp.obj.d
-  FLAGS = -g -std=gnu++20
-  OBJECT_DIR = CMakeFiles\ImageProcessor.dir
-  OBJECT_FILE_DIR = CMakeFiles\ImageProcessor.dir
-
 
 # =============================================================================
 # Link build statements for EXECUTABLE target ImageProcessor
@@ -93,7 +87,7 @@ build CMakeFiles/ImageProcessor.dir/Resdiv.cpp.obj: CXX_COMPILER__ImageProcessor
 #############################################
 # Link the executable ImageProcessor.exe
 
-build ImageProcessor.exe: CXX_EXECUTABLE_LINKER__ImageProcessor_Debug CMakeFiles/ImageProcessor.dir/main.cpp.obj CMakeFiles/ImageProcessor.dir/image.cpp.obj CMakeFiles/ImageProcessor.dir/Processor.cpp.obj CMakeFiles/ImageProcessor.dir/schrift.cpp.obj CMakeFiles/ImageProcessor.dir/Font.cpp.obj CMakeFiles/ImageProcessor.dir/Resdiv.cpp.obj
+build ImageProcessor.exe: CXX_EXECUTABLE_LINKER__ImageProcessor_Debug CMakeFiles/ImageProcessor.dir/main.cpp.obj CMakeFiles/ImageProcessor.dir/image.cpp.obj CMakeFiles/ImageProcessor.dir/Processor.cpp.obj CMakeFiles/ImageProcessor.dir/schrift.cpp.obj CMakeFiles/ImageProcessor.dir/Font.cpp.obj
   FLAGS = -g
   LINK_LIBRARIES = -lkernel32 -luser32 -lgdi32 -lwinspool -lshell32 -lole32 -loleaut32 -luuid -lcomdlg32 -ladvapi32
   OBJECT_DIR = CMakeFiles\ImageProcessor.dir
